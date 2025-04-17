@@ -22,6 +22,13 @@ interface Language {
   proficiency_level: LanguageLevel;
 }
 
+interface HackathonInterest {
+  id?: string;
+  interest: string;
+  format_preference: 'online' | 'in_person' | 'hybrid';
+  location_preference?: string;
+}
+
 interface Profile {
   id: string;
   full_name: string;
@@ -40,11 +47,15 @@ export default function Profile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
+  const [hackathonInterests, setHackathonInterests] = useState<HackathonInterest[]>([]);
   
   const [newSkill, setNewSkill] = useState('');
   const [newSkillLevel, setNewSkillLevel] = useState<SkillLevel>('Beginner');
   const [newLanguage, setNewLanguage] = useState('');
   const [newLanguageLevel, setNewLanguageLevel] = useState<LanguageLevel>('Fluent');
+  const [newInterest, setNewInterest] = useState('');
+  const [newFormatPreference, setNewFormatPreference] = useState<'online' | 'in_person' | 'hybrid'>('online');
+  const [newLocationPreference, setNewLocationPreference] = useState('');
   
   // Form data for editing profile
   const [formData, setFormData] = useState({
@@ -182,6 +193,19 @@ export default function Profile() {
         setLanguages(languagesData || []);
       }
       
+      // Fetch hackathon interests
+      const { data: interestsData, error: interestsError } = await supabase
+        .from('hackathon_interests')
+        .select('*')
+        .eq('profile_id', user.id);
+        
+      if (interestsError) {
+        console.error('Interests fetch error:', interestsError);
+      } else {
+        console.log('Interests data:', interestsData);
+        setHackathonInterests(interestsData || []);
+      }
+      
     } catch (error) {
       console.error('Full error object:', error);
       toast.error('Failed to load profile data');
@@ -267,6 +291,52 @@ export default function Profile() {
     } catch (error) {
       console.error('Error adding language:', error);
       toast.error('Failed to add language');
+    }
+  };
+
+  const addHackathonInterest = async () => {
+    if (!newInterest.trim()) return;
+    
+    try {
+      const newInterestData = {
+        profile_id: user?.id,
+        interest: newInterest.trim(),
+        format_preference: newFormatPreference,
+        location_preference: newLocationPreference.trim() || null
+      };
+      
+      const { data, error } = await supabase
+        .from('hackathon_interests')
+        .insert([newInterestData])
+        .select();
+        
+      if (error) throw error;
+      
+      setHackathonInterests(prev => [...prev, data[0]]);
+      setNewInterest('');
+      setNewFormatPreference('online');
+      setNewLocationPreference('');
+      toast.success('Hackathon interest added');
+    } catch (error) {
+      console.error('Error adding hackathon interest:', error);
+      toast.error('Failed to add hackathon interest');
+    }
+  };
+
+  const removeHackathonInterest = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('hackathon_interests')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      setHackathonInterests(prev => prev.filter(interest => interest.id !== id));
+      toast.success('Hackathon interest removed');
+    } catch (error) {
+      console.error('Error removing hackathon interest:', error);
+      toast.error('Failed to remove hackathon interest');
     }
   };
 
@@ -577,6 +647,74 @@ export default function Profile() {
                     className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
                   >
                     Add Language
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Hackathon Interests</h2>
+              <div className="space-y-2 mb-4">
+                {hackathonInterests.length === 0 ? (
+                  <p className="text-gray-500 italic">You haven't added any hackathon interests yet.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {hackathonInterests.map((interest) => (
+                      <div 
+                        key={interest.id} 
+                        className="bg-indigo-50 text-indigo-800 px-3 py-2 rounded-md text-sm flex items-center group"
+                      >
+                        <span>{interest.interest}</span>
+                        <span className="mx-1">•</span>
+                        <span className="text-indigo-600">{interest.format_preference}</span>
+                        {interest.location_preference && (
+                          <>
+                            <span className="mx-1">•</span>
+                            <span className="text-indigo-600">{interest.location_preference}</span>
+                          </>
+                        )}
+                        <button
+                          onClick={() => removeHackathonInterest(interest.id as string)}
+                          className="ml-2 text-indigo-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={newInterest}
+                  onChange={(e) => setNewInterest(e.target.value)}
+                  placeholder="Add a hackathon interest (e.g., AI/ML, Web3, Climate Tech)"
+                  className="w-full border rounded-md px-3 py-2"
+                />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={newFormatPreference}
+                    onChange={(e) => setNewFormatPreference(e.target.value as 'online' | 'in_person' | 'hybrid')}
+                    className="flex-1 border rounded-md px-3 py-2"
+                  >
+                    <option value="online">Online</option>
+                    <option value="in_person">In Person</option>
+                    <option value="hybrid">Hybrid</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={newLocationPreference}
+                    onChange={(e) => setNewLocationPreference(e.target.value)}
+                    placeholder="Location preference (if applicable)"
+                    className="flex-1 border rounded-md px-3 py-2"
+                  />
+                  <button
+                    onClick={addHackathonInterest}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 whitespace-nowrap"
+                  >
+                    Add Interest
                   </button>
                 </div>
               </div>
