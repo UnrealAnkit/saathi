@@ -364,7 +364,7 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="pt-20 px-8 pb-8">
+        <div className="pt-20 px-4 sm:px-8 pb-8">
           {isEditing ? (
             <div className="mb-6 space-y-4">
               <div>
@@ -463,8 +463,8 @@ export default function Profile() {
               </div>
             </div>
           ) : (
-            <div className="flex justify-between items-start mb-6">
-              <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start mb-6">
+              <div className="mb-4 sm:mb-0">
                 <h1 className="text-2xl font-bold text-gray-900">
                   {profile?.full_name || 'Your Name'}
                 </h1>
@@ -474,7 +474,7 @@ export default function Profile() {
               </div>
               <button 
                 onClick={() => setIsEditing(true)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto"
               >
                 Edit Profile
               </button>
@@ -512,29 +512,32 @@ export default function Profile() {
                   </span>
                 ))}
               </div>
-              <div className="flex gap-2">
+              
+              <div className="space-y-2">
                 <input
                   type="text"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
                   placeholder="Add a skill..."
-                  className="flex-1 border rounded-md px-3 py-2"
+                  className="w-full border rounded-md px-3 py-2"
                 />
-                <select
-                  value={newSkillLevel}
-                  onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
-                  className="border rounded-md px-3 py-2"
-                >
-                  {skillLevels.map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={addSkill}
-                  className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200"
-                >
-                  Add
-                </button>
+                <div className="flex gap-2">
+                  <select
+                    value={newSkillLevel}
+                    onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
+                    className="flex-1 border rounded-md px-3 py-2"
+                  >
+                    {skillLevels.map(level => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={addSkill}
+                    className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
+                  >
+                    Add Skill
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -550,29 +553,32 @@ export default function Profile() {
                   </span>
                 ))}
               </div>
-              <div className="flex gap-2">
+              
+              <div className="space-y-2">
                 <input
                   type="text"
                   value={newLanguage}
                   onChange={(e) => setNewLanguage(e.target.value)}
                   placeholder="Add a language..."
-                  className="flex-1 border rounded-md px-3 py-2"
+                  className="w-full border rounded-md px-3 py-2"
                 />
-                <select
-                  value={newLanguageLevel}
-                  onChange={(e) => setNewLanguageLevel(e.target.value as LanguageLevel)}
-                  className="border rounded-md px-3 py-2"
-                >
-                  {languageLevels.map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={addLanguage}
-                  className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200"
-                >
-                  Add
-                </button>
+                <div className="flex gap-2">
+                  <select
+                    value={newLanguageLevel}
+                    onChange={(e) => setNewLanguageLevel(e.target.value as LanguageLevel)}
+                    className="flex-1 border rounded-md px-3 py-2"
+                  >
+                    {languageLevels.map(level => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={addLanguage}
+                    className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
+                  >
+                    Add Language
+                  </button>
+                </div>
               </div>
             </div>
 
