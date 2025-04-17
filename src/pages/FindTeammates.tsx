@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, MapPin, Code, Calendar } from 'lucide-react';
+import { Search, Filter, MapPin, Code, Calendar, UserPlus, MessageCircle, Check, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
@@ -12,6 +12,8 @@ interface UserProfile {
   skills: { name: string; proficiency_level: string }[];
   languages: { language: string; proficiency_level: string }[];
   hackathon_interests: string[] | null;
+  connection_status?: 'none' | 'pending' | 'accepted' | 'rejected';
+  connection_id?: string;
 }
 
 export default function FindTeammates() {
@@ -37,6 +39,9 @@ export default function FindTeammates() {
   const fetchProfiles = async () => {
     setLoading(true);
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
       // Fetch all profiles
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -44,9 +49,23 @@ export default function FindTeammates() {
         
       if (profilesError) throw profilesError;
       
-      // For each profile, fetch their skills and languages
+      // Fetch connections for the current user
+      let connections = [];
+      if (user) {
+        const { data: connectionsData } = await supabase
+          .from('connections')
+          .select('*')
+          .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
+          
+        connections = connectionsData || [];
+      }
+      
+      // For each profile, fetch their skills, languages, and determine connection status
       const profilesWithDetails = await Promise.all(
         profilesData.map(async (profile) => {
+          // Skip the current user's profile
+          if (user && profile.id === user.id) return null;
+          
           // Fetch skills
           const { data: skillsData } = await supabase
             .from('skills')
@@ -59,20 +78,44 @@ export default function FindTeammates() {
             .select('language, proficiency_level')
             .eq('profile_id', profile.id);
             
-          // Fetch hackathon interests (this would need to be added to your schema)
-          // For now, we'll just use a placeholder
+          // Fetch hackathon interests
+          const { data: interestsData } = await supabase
+            .from('hackathon_interests')
+            .select('interest, format_preference, location_preference')
+            .eq('profile_id', profile.id);
+          
+          // Determine connection status
+          let connection_status = 'none';
+          let connection_id = null;
+          
+          if (user) {
+            const connection = connections.find(c => 
+              (c.requester_id === user.id && c.recipient_id === profile.id) || 
+              (c.requester_id === profile.id && c.recipient_id === user.id)
+            );
+            
+            if (connection) {
+              connection_status = connection.status;
+              connection_id = connection.id;
+            }
+          }
           
           return {
             ...profile,
             skills: skillsData || [],
             languages: languagesData || [],
-            hackathon_interests: ['AI/ML', 'Web3', 'Climate Tech'] // Placeholder
+            hackathon_interests: interestsData?.map(i => i.interest) || [],
+            connection_status,
+            connection_id
           };
         })
       );
       
-      setProfiles(profilesWithDetails);
-      setFilteredProfiles(profilesWithDetails);
+      // Filter out null values (current user's profile)
+      const filteredProfiles = profilesWithDetails.filter(Boolean);
+      
+      setProfiles(filteredProfiles);
+      setFilteredProfiles(filteredProfiles);
     } catch (error) {
       console.error('Error fetching profiles:', error);
       toast.error('Failed to load profiles');
@@ -132,6 +175,104 @@ export default function FindTeammates() {
     setLocationFilter('');
     setFormatFilter('all');
     setFilteredProfiles(profiles);
+  };
+  
+  const sendConnectionRequest = async (profileId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('You must be logged in to connect with teammates');
+        return;
+      }
+      
+      console.log('Sending connection request from', user.id, 'to', profileId);
+      
+      // Create the connection directly without checking first
+      const { data, error } = await supabase
+        .from('connections')
+        .insert({
+          requester_id: user.id,
+          recipient_id: profileId,
+          status: 'pending'
+        })
+        .select();
+        
+      if (error) {
+        console.error('Error creating connection:', error);
+        
+        // If it's a unique violation, it means the connection already exists
+        if (error.code === '23505') {
+          toast.error('A connection with this user already exists');
+        } else {
+          toast.error('Failed to send connection request');
+        }
+        return;
+      }
+      
+      // Update the local state
+      setProfiles(prev => 
+        prev.map(profile => 
+          profile.id === profileId 
+            ? { ...profile, connection_status: 'pending', connection_id: data[0].id } 
+            : profile
+        )
+      );
+      
+      setFilteredProfiles(prev => 
+        prev.map(profile => 
+          profile.id === profileId 
+            ? { ...profile, connection_status: 'pending', connection_id: data[0].id } 
+            : profile
+        )
+      );
+      
+      toast.success('Connection request sent');
+    } catch (error) {
+      console.error('Error sending connection request:', error);
+      toast.error('Failed to send connection request');
+    }
+  };
+  
+  const updateConnectionStatus = async (connectionId: string, status: 'accepted' | 'rejected', profileId: string) => {
+    try {
+      if (!connectionId) {
+        toast.error('Connection ID is missing');
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('connections')
+        .update({ status })
+        .eq('id', connectionId);
+        
+      if (error) {
+        console.error(`Error updating connection status:`, error);
+        throw error;
+      }
+      
+      // Update the local state
+      setProfiles(prev => 
+        prev.map(profile => 
+          profile.id === profileId 
+            ? { ...profile, connection_status: status } 
+            : profile
+        )
+      );
+      
+      setFilteredProfiles(prev => 
+        prev.map(profile => 
+          profile.id === profileId 
+            ? { ...profile, connection_status: status } 
+            : profile
+        )
+      );
+      
+      toast.success(`Connection ${status}`);
+    } catch (error) {
+      console.error(`Error ${status} connection:`, error);
+      toast.error(`Failed to ${status} connection`);
+    }
   };
   
   return (
@@ -300,12 +441,86 @@ export default function FindTeammates() {
                   </div>
                 </div>
                 
-                <Link
-                  to={`/profile/${profile.id}`}
-                  className="block w-full text-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 mt-4"
-                >
-                  View Profile
-                </Link>
+                <div className="flex justify-between items-center">
+                  {profile.connection_status === 'none' && (
+                    <button
+                      onClick={() => sendConnectionRequest(profile.id)}
+                      className="text-indigo-600 hover:text-indigo-800"
+                    >
+                      Connect
+                    </button>
+                  )}
+                  {profile.connection_status === 'pending' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateConnectionStatus(profile.connection_id!, 'accepted', profile.id!)}
+                        className="text-indigo-600 hover:text-indigo-800"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => updateConnectionStatus(profile.connection_id!, 'rejected', profile.id!)}
+                        className="text-gray-600 hover:text-gray-800"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                  {profile.connection_status === 'accepted' && (
+                    <span className="text-green-600">Connected</span>
+                  )}
+                  {profile.connection_status === 'rejected' && (
+                    <span className="text-red-600">Rejected</span>
+                  )}
+                </div>
+                
+                <div className="mt-4 flex gap-2">
+                  <Link
+                    to={`/profile/${profile.id}`}
+                    className="flex-1 text-center bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200"
+                  >
+                    View Profile
+                  </Link>
+                  
+                  {profile.connection_status === 'none' && (
+                    <button
+                      onClick={() => sendConnectionRequest(profile.id)}
+                      className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                      title="Connect"
+                    >
+                      <UserPlus className="h-5 w-5" />
+                    </button>
+                  )}
+                  
+                  {profile.connection_status === 'pending' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => updateConnectionStatus(profile.connection_id!, 'accepted', profile.id)}
+                        className="flex items-center justify-center bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700"
+                        title="Accept"
+                      >
+                        <Check className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => updateConnectionStatus(profile.connection_id!, 'rejected', profile.id)}
+                        className="flex items-center justify-center bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700"
+                        title="Reject"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {profile.connection_status === 'accepted' && (
+                    <Link
+                      to={`/messages/${profile.connection_id}`}
+                      className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                      title="Message"
+                    >
+                      <MessageCircle className="h-5 w-5" />
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
@@ -7,7 +7,10 @@ import Profile from './pages/Profile';
 import Auth from './pages/Auth';
 import Hackathons from './pages/Hackathons';
 import FindTeammates from './pages/FindTeammates';
+import Messages from './pages/Messages';
+import Connections from './pages/Connections';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { setupDatabase } from './lib/setupDatabase';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -20,6 +23,18 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Set up database tables when the app initializes
+    setupDatabase()
+      .then(success => {
+        if (success) {
+          console.log('Database setup completed successfully');
+        } else {
+          console.error('Database setup failed');
+        }
+      });
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
@@ -39,6 +54,22 @@ function App() {
                 }
               />
               <Route path="/find-teammates" element={<FindTeammates />} />
+              <Route
+                path="/connections"
+                element={
+                  <PrivateRoute>
+                    <Connections />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/messages/:connectionId"
+                element={
+                  <PrivateRoute>
+                    <Messages />
+                  </PrivateRoute>
+                }
+              />
             </Routes>
           </main>
           <Toaster position="top-right" />
