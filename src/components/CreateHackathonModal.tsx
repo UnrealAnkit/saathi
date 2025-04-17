@@ -33,14 +33,31 @@ export default function CreateHackathonModal({
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('hackathons').insert([formData]);
+      // Get the current user's ID
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (error) throw error;
+      if (!user) {
+        throw new Error('You must be logged in to create a hackathon');
+      }
+      
+      // Add the owner_id to the form data
+      const hackathonData = {
+        ...formData,
+        owner_id: user.id
+      };
+
+      const { error } = await supabase.from('hackathons').insert([hackathonData]);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
       
       toast.success('Hackathon created successfully!');
       onSuccess();
       onClose();
     } catch (error) {
+      console.error('Full error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create hackathon');
     } finally {
       setLoading(false);
@@ -58,32 +75,58 @@ export default function CreateHackathonModal({
   };
 
   function showCreateHackathonForm() {
-    document.getElementById('create-hackathon-form').style.display = 'block';
+    const form = document.getElementById('create-hackathon-form');
+    if (form) {
+      form.style.display = 'block';
+    }
   }
 
   async function submitHackathon() {
+    const titleElement = document.getElementById('title') as HTMLInputElement;
+    const descriptionElement = document.getElementById('description') as HTMLTextAreaElement;
+    const startDateElement = document.getElementById('start_date') as HTMLInputElement;
+    const endDateElement = document.getElementById('end_date') as HTMLInputElement;
+    const formatElement = document.getElementById('format') as HTMLSelectElement;
+    const locationElement = document.getElementById('location') as HTMLInputElement;
+    const themeElement = document.getElementById('theme') as HTMLInputElement;
+    
+    if (!titleElement || !descriptionElement || !startDateElement || 
+        !endDateElement || !formatElement || !locationElement || !themeElement) {
+      console.error('One or more form elements not found');
+      return;
+    }
+    
     const hackathon = {
-      title: document.getElementById('title').value,
-      description: document.getElementById('description').value,
-      start_date: document.getElementById('start_date').value,
-      end_date: document.getElementById('end_date').value,
-      format: document.getElementById('format').value,
-      location: document.getElementById('location').value,
-      theme: document.getElementById('theme').value,
+      title: titleElement.value,
+      description: descriptionElement.value,
+      start_date: startDateElement.value,
+      end_date: endDateElement.value,
+      format: formatElement.value,
+      location: locationElement.value,
+      theme: themeElement.value,
     };
 
-    const response = await fetch('/api/hackathons', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(hackathon),
-    });
+    console.log('Submitting hackathon:', hackathon);
 
-    if (response.ok) {
-      alert('Hackathon created successfully!');
-      location.reload();
-    } else {
+    try {
+      const response = await fetch('/api/hackathons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(hackathon),
+      });
+
+      if (response.ok) {
+        alert('Hackathon created successfully!');
+        location.reload();
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to create hackathon:', errorText);
+        alert('Failed to create hackathon.');
+      }
+    } catch (error) {
+      console.error('Error during submission:', error);
       alert('Failed to create hackathon.');
     }
   }
