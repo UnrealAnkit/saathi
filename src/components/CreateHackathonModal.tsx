@@ -40,7 +40,7 @@ export default function CreateHackathonModal({
         throw new Error('You must be logged in to create a hackathon');
       }
       
-      // Add the owner_id to the form data
+      
       const hackathonData = {
         ...formData,
         owner_id: user.id
