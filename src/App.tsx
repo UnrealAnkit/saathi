@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Profile from './pages/Profile';
 import Auth from './pages/Auth';
 import Hackathons from './pages/Hackathons';
+import FindTeammates from './pages/FindTeammates';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route path="/find-teammates" element={<FindTeammates />} />
             </Routes>
           </main>
           <Toaster position="top-right" />
