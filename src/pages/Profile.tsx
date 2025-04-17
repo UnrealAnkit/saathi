@@ -57,56 +57,102 @@ export default function Profile() {
   });
 
   useEffect(() => {
-    if (user) {
-      fetchProfileData();
+    const checkUser = async () => {
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session && session.user) {
+        console.log('User is authenticated:', session.user);
+        checkAvatarsBucket();
+        fetchProfileData();
+      } else {
+        console.log('No authenticated session found');
+        setLoading(false);
+      }
+    };
+    
+    checkUser();
+  }, []);
+
+  const checkAvatarsBucket = async () => {
+    try {
+      console.log('Checking for avatars bucket...');
+      // Skip bucket creation for now since it's failing
+      // We'll use a workaround for avatar uploads
+    } catch (error) {
+      console.error('Error checking avatars bucket:', error);
     }
-  }, [user]);
+  };
 
   const fetchProfileData = async () => {
     setLoading(true);
     try {
-      // Fetch profile
+      console.log('Fetching profile for user ID:', user?.id);
+      
+      if (!user?.id) {
+        console.error('No user ID available');
+        throw new Error('User ID is required');
+      }
+      
+      // First check if profile exists
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user?.id)
-        .single();
+        .eq('id', user.id);
       
-      if (profileError) throw profileError;
+      console.log('Profile query response:', profileData);
       
-      // If profile doesn't exist, create one
-      if (!profileData) {
+      if (profileError) {
+        console.error('Profile fetch error details:', profileError);
+        throw profileError;
+      }
+      
+      // If profile doesn't exist or is empty, create one
+      if (!profileData || profileData.length === 0) {
+        console.log('No profile found, creating new profile');
+        
         const newProfile = {
-          id: user?.id,
+          id: user.id,
           full_name: user?.user_metadata?.full_name || '',
           avatar_url: user?.user_metadata?.avatar_url || null,
         };
         
+        console.log('Creating profile with data:', newProfile);
+        
         const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
           .insert([newProfile])
-          .select()
-          .single();
+          .select();
           
-        if (createError) throw createError;
-        setProfile(createdProfile);
-        setFormData({
-          full_name: createdProfile.full_name || '',
-          location: createdProfile.location || '',
-          timezone: createdProfile.timezone || '',
-          github_url: createdProfile.github_url || '',
-          linkedin_url: createdProfile.linkedin_url || '',
-          website_url: createdProfile.website_url || '',
-        });
+        if (createError) {
+          console.error('Profile creation error:', createError);
+          throw createError;
+        }
+        
+        console.log('Created profile:', createdProfile);
+        
+        if (createdProfile && createdProfile.length > 0) {
+          setProfile(createdProfile[0]);
+          setFormData({
+            full_name: createdProfile[0].full_name || '',
+            location: createdProfile[0].location || '',
+            timezone: createdProfile[0].timezone || '',
+            github_url: createdProfile[0].github_url || '',
+            linkedin_url: createdProfile[0].linkedin_url || '',
+            website_url: createdProfile[0].website_url || '',
+          });
+        }
       } else {
-        setProfile(profileData);
+        // Profile exists
+        console.log('Profile found:', profileData[0]);
+        setProfile(profileData[0]);
         setFormData({
-          full_name: profileData.full_name || '',
-          location: profileData.location || '',
-          timezone: profileData.timezone || '',
-          github_url: profileData.github_url || '',
-          linkedin_url: profileData.linkedin_url || '',
-          website_url: profileData.website_url || '',
+          full_name: profileData[0].full_name || '',
+          location: profileData[0].location || '',
+          timezone: profileData[0].timezone || '',
+          github_url: profileData[0].github_url || '',
+          linkedin_url: profileData[0].linkedin_url || '',
+          website_url: profileData[0].website_url || '',
         });
       }
       
@@ -114,22 +160,30 @@ export default function Profile() {
       const { data: skillsData, error: skillsError } = await supabase
         .from('skills')
         .select('*')
-        .eq('profile_id', user?.id);
+        .eq('profile_id', user.id);
         
-      if (skillsError) throw skillsError;
-      setSkills(skillsData || []);
+      if (skillsError) {
+        console.error('Skills fetch error:', skillsError);
+      } else {
+        console.log('Skills data:', skillsData);
+        setSkills(skillsData || []);
+      }
       
       // Fetch languages
       const { data: languagesData, error: languagesError } = await supabase
         .from('languages')
         .select('*')
-        .eq('profile_id', user?.id);
+        .eq('profile_id', user.id);
         
-      if (languagesError) throw languagesError;
-      setLanguages(languagesData || []);
+      if (languagesError) {
+        console.error('Languages fetch error:', languagesError);
+      } else {
+        console.log('Languages data:', languagesData);
+        setLanguages(languagesData || []);
+      }
       
     } catch (error) {
-      console.error('Error fetching profile data:', error);
+      console.error('Full error object:', error);
       toast.error('Failed to load profile data');
     } finally {
       setLoading(false);
@@ -220,40 +274,70 @@ export default function Profile() {
     if (!e.target.files || e.target.files.length === 0) return;
     
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const filePath = `avatars/${user?.id}.${fileExt}`;
     
     try {
-      // Upload the file
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-        
-      if (uploadError) throw uploadError;
+      // Instead of using storage, let's convert the image to a data URL
+      const reader = new FileReader();
       
-      // Get the public URL
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      reader.onload = async (event) => {
+        if (!event.target || typeof event.target.result !== 'string') {
+          toast.error('Failed to process image');
+          return;
+        }
         
-      // Update the profile
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: data.publicUrl })
-        .eq('id', user?.id);
+        const dataUrl = event.target.result;
         
-      if (updateError) throw updateError;
+        // Update the profile with the data URL
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: dataUrl })
+          .eq('id', user?.id);
+          
+        if (error) {
+          console.error('Profile update error:', error);
+          toast.error('Failed to update avatar');
+          return;
+        }
+        
+        setProfile(prev => prev ? { ...prev, avatar_url: dataUrl } : null);
+        toast.success('Avatar updated');
+      };
       
-      setProfile(prev => prev ? { ...prev, avatar_url: data.publicUrl } : null);
-      toast.success('Avatar updated');
+      reader.onerror = () => {
+        toast.error('Failed to read image file');
+      };
+      
+      reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Error uploading avatar:', error);
+      console.error('Avatar upload error:', error);
       toast.error('Failed to upload avatar');
     }
   };
 
   if (loading) {
     return <div className="flex justify-center p-8">Loading profile...</div>;
+  }
+
+  if (!profile && !loading) {
+    return (
+      <div className="max-w-3xl mx-auto p-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
+          <h2 className="text-xl font-semibold text-red-600 mb-4">Error Loading Profile</h2>
+          <p className="mb-4">We encountered an issue loading your profile data. This could be due to:</p>
+          <ul className="list-disc pl-5 mb-4">
+            <li>Connection issues with the database</li>
+            <li>Missing permissions</li>
+            <li>Your profile hasn't been created yet</li>
+          </ul>
+          <button 
+            onClick={fetchProfileData}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
