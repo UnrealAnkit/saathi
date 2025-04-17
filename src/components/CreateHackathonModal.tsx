@@ -57,6 +57,37 @@ export default function CreateHackathonModal({
     }));
   };
 
+  function showCreateHackathonForm() {
+    document.getElementById('create-hackathon-form').style.display = 'block';
+  }
+
+  async function submitHackathon() {
+    const hackathon = {
+      title: document.getElementById('title').value,
+      description: document.getElementById('description').value,
+      start_date: document.getElementById('start_date').value,
+      end_date: document.getElementById('end_date').value,
+      format: document.getElementById('format').value,
+      location: document.getElementById('location').value,
+      theme: document.getElementById('theme').value,
+    };
+
+    const response = await fetch('/api/hackathons', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(hackathon),
+    });
+
+    if (response.ok) {
+      alert('Hackathon created successfully!');
+      location.reload();
+    } else {
+      alert('Failed to create hackathon.');
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg w-full max-w-2xl mx-4">
