@@ -10,6 +10,12 @@ interface CreateHackathonModalProps {
   onSuccess: () => void;
 }
 
+// Define a type for the progress event
+interface UploadProgressEvent {
+  loaded: number;
+  total: number;
+}
+
 export default function CreateHackathonModal({ onClose, onSuccess }: CreateHackathonModalProps) {
   const { user } = useAuth();
   const [name, setName] = useState('');
@@ -25,6 +31,7 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -58,6 +65,41 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
     setImagePreview(null);
   };
 
+  const uploadImage = async (file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const filePath = `hackathon-images/${fileName}`;
+    
+    setUploading(true);
+    
+    try {
+      // Define custom options for the upload
+      const options = {
+        cacheControl: '3600',
+        upsert: false,
+      };
+      
+      // Use a separate function to handle progress
+      const { data, error } = await supabase.storage
+        .from('hackathon-images')
+        .upload(filePath, file, options, {
+          onUploadProgress: (progress: UploadProgressEvent) => {
+            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
+          }
+        });
+      
+      if (error) throw error;
+      
+      return filePath;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Error uploading image');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -78,31 +120,15 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
       
       // Upload image if selected
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `hackathon-images/${fileName}`;
-        
-        // Upload the file
-        const { error: uploadError, data } = await supabase.storage
-          .from('hackathon-images')
-          .upload(filePath, imageFile, {
-            cacheControl: '3600',
-            upsert: false,
-            onUploadProgress: (progress) => {
-              setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
-            }
-          });
+        const filePath = await uploadImage(imageFile);
+        if (filePath) {
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('hackathon-images')
+            .getPublicUrl(filePath);
           
-        if (uploadError) {
-          throw uploadError;
+          imageUrl = publicUrl;
         }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('hackathon-images')
-          .getPublicUrl(filePath);
-          
-        imageUrl = publicUrl;
       }
       
       // Create hackathon
@@ -294,7 +320,7 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
                   <X className="h-4 w-4" />
                 </button>
                 
-                {uploadProgress > 0 && uploadProgress < 100 && loading && (
+                {uploadProgress > 0 && uploadProgress < 100 && uploading && (
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-center py-1">
                     Uploading: {uploadProgress}%
                   </div>

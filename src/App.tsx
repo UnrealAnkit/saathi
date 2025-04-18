@@ -24,17 +24,16 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  // Comment out or remove the setupDatabase call
-  // useEffect(() => {
-  //   setupDatabase()
-  //     .then(success => {
-  //       if (success) {
-  //         console.log('Database setup completed successfully');
-  //       } else {
-  //         console.error('Database setup failed');
-  //       }
-  //     });
-  // }, []);
+  useEffect(() => {
+    setupDatabase()
+      .then(success => {
+        if (success) {
+          console.log('Database setup completed successfully');
+        } else {
+          console.error('Database setup failed');
+        }
+      });
+  }, []);
 
   return (
     <Router>

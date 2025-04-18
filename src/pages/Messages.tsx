@@ -21,13 +21,14 @@ interface Message {
 interface Connection {
   id: string;
   status: string;
-  created_at: string;
-  user1: {
+  sender_id: string;
+  receiver_id: string;
+  sender?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
-  user2: {
+  receiver?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
@@ -37,82 +38,184 @@ interface Connection {
 export default function Messages() {
   const { connectionId } = useParams<{ connectionId: string }>();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [connection, setConnection] = useState<Connection | null>(null);
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [connection, setConnection] = useState<Connection | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-  
+
   useEffect(() => {
-    if (connectionId && user) {
+    if (user && connectionId) {
       fetchConnection();
+      fetchMessages();
+      
+      // Set up real-time subscription for new messages
+      const subscription = supabase
+        .channel('messages-channel')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `connection_id=eq.${connectionId}`,
+        }, (payload) => {
+          // Only add the message if it's not from the current user to avoid duplicates
+          // (since we optimistically add the user's own messages)
+          if (payload.new.sender_id !== user.id) {
+            fetchSenderDetails(payload.new).then(messageWithSender => {
+              setMessages(prev => [...prev, messageWithSender]);
+            });
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
     }
-  }, [connectionId, user]);
-  
+  }, [user, connectionId]);
+
   useEffect(() => {
-    // Scroll to bottom when messages change
     scrollToBottom();
   }, [messages]);
-  
+
   const fetchConnection = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      if (!connectionId || !user) return;
+      if (!connectionId) {
+        throw new Error('Connection ID is missing');
+      }
       
-      setLoading(true);
-      
-      // First, fetch the connection details
-      const { data: connectionData, error: connectionError } = await supabase
+      // First, try with sender_id/receiver_id columns
+      let { data, error } = await supabase
         .from('connections')
         .select(`
           id,
           status,
-          created_at,
-          user1:profiles!connections_user1_id_fkey(id, full_name, avatar_url),
-          user2:profiles!connections_user2_id_fkey(id, full_name, avatar_url)
+          sender_id,
+          receiver_id,
+          sender:profiles!sender_id(id, full_name, avatar_url),
+          receiver:profiles!receiver_id(id, full_name, avatar_url)
         `)
         .eq('id', connectionId)
         .single();
       
-      if (connectionError) {
-        console.error('Error fetching connection:', connectionError);
+      // If there's an error with the column names, try with requester_id/recipient_id
+      if (error && (error.code === 'PGRST200' || error.code === '42703')) {
+        console.log('Trying alternative column names (requester_id/recipient_id)');
         
-        if (connectionError.code === 'PGRST116') {
-          // Resource not found
-          toast.error('Conversation not found');
-          navigate('/connections');
+        const { data: altData, error: altError } = await supabase
+          .from('connections')
+          .select(`
+            id,
+            status,
+            requester_id,
+            recipient_id,
+            requester:profiles!requester_id(id, full_name, avatar_url),
+            recipient:profiles!recipient_id(id, full_name, avatar_url)
+          `)
+          .eq('id', connectionId)
+          .single();
+        
+        if (altError) {
+          // If both queries fail, try a simpler query without joins
+          console.log('Falling back to simpler query without joins');
+          
+          // Try with sender_id/receiver_id first
+          const { data: simpleData, error: simpleError } = await supabase
+            .from('connections')
+            .select('*')
+            .eq('id', connectionId)
+            .single();
+          
+          if (simpleError && simpleError.code === '42703') {
+            // If that fails, try with requester_id/recipient_id
+            const { data: altSimpleData, error: altSimpleError } = await supabase
+              .from('connections')
+              .select('*')
+              .eq('id', connectionId)
+              .single();
+            
+            if (altSimpleError) throw altSimpleError;
+            
+            // Map the data to use sender_id/receiver_id naming
+            data = {
+              ...altSimpleData,
+              sender_id: altSimpleData.requester_id,
+              receiver_id: altSimpleData.recipient_id,
+              // We'll fetch profiles separately
+            };
+          } else if (simpleError) {
+            throw simpleError;
+          } else {
+            data = simpleData;
+          }
+          
+          // Fetch the profiles separately
+          if (data) {
+            const senderId = data.sender_id || data.requester_id;
+            const receiverId = data.receiver_id || data.recipient_id;
+            
+            const { data: senderData, error: senderError } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .eq('id', senderId)
+              .single();
+            
+            const { data: receiverData, error: receiverError } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .eq('id', receiverId)
+              .single();
+            
+            // Combine the data
+            data = {
+              ...data,
+              sender_id: senderId,
+              receiver_id: receiverId,
+              sender: senderData || { id: senderId, full_name: 'Unknown User' },
+              receiver: receiverData || { id: receiverId, full_name: 'Unknown User' }
+            };
+          }
         } else {
-          toast.error('Failed to load conversation');
+          // Map the data to use sender_id/receiver_id naming
+          data = {
+            ...altData,
+            sender_id: altData.requester_id,
+            receiver_id: altData.recipient_id,
+            sender: altData.requester,
+            receiver: altData.recipient
+          };
         }
-        
-        setLoading(false);
-        return;
+      } else if (error) {
+        throw error;
       }
       
-      if (!connectionData) {
-        toast.error('Conversation not found');
-        setLoading(false);
-        return;
+      if (!data) {
+        throw new Error('Connection not found');
       }
       
-      // Check if the current user is part of this connection
-      if (connectionData.user1.id !== user.id && connectionData.user2.id !== user.id) {
-        toast.error('You do not have permission to view this conversation');
-        setLoading(false);
-        return;
+      // Verify that the current user is part of this connection
+      if (user && data.sender_id !== user.id && data.receiver_id !== user.id) {
+        throw new Error('You do not have access to this conversation');
       }
       
-      if (connectionData.status !== 'accepted') {
-        toast.error('You can only message connections that have been accepted');
-        setLoading(false);
-        return;
-      }
-      
-      setConnection(connectionData);
-      
-      // Now fetch messages
-      const { data: messagesData, error: messagesError } = await supabase
+      setConnection(data);
+    } catch (error) {
+      console.error('Error fetching connection:', error);
+      setError('Failed to load conversation. Please try again later.');
+      toast.error('Failed to load conversation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
         .from('messages')
         .select(`
           id,
@@ -120,258 +223,184 @@ export default function Messages() {
           sender_id,
           content,
           created_at,
-          sender:profiles(full_name, avatar_url)
+          sender:profiles!sender_id(full_name, avatar_url)
         `)
         .eq('connection_id', connectionId)
         .order('created_at', { ascending: true });
       
-      if (messagesError) {
-        console.error('Error fetching messages:', messagesError);
-        toast.error('Failed to load messages');
-      } else {
-        setMessages(messagesData || []);
-        
-        // Mark unread messages as read
-        const unreadMessages = messagesData?.filter(
-          msg => msg.sender_id !== user.id && !msg.read
-        ) || [];
-        
-        if (unreadMessages.length > 0) {
-          for (const msg of unreadMessages) {
-            await supabase
-              .from('messages')
-              .update({ read: true })
-              .eq('id', msg.id);
-          }
-        }
+      if (error) {
+        throw error;
       }
       
-      // Set up real-time subscription for new messages
-      const channel = supabase
-        .channel(`messages:connection_id=eq.${connectionId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `connection_id=eq.${connectionId}`
-        }, (payload) => {
-          console.log('New message received:', payload);
-          const newMessage = payload.new as Message;
-          setMessages(prev => [...prev, newMessage]);
-          
-          // Mark message as read if it's not from the current user
-          if (newMessage.sender_id !== user.id) {
-            markMessageAsRead(newMessage.id);
-          }
-        })
-        .subscribe((status) => {
-          console.log('Subscription status:', status);
-        });
+      setMessages(data || []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast.error('Failed to load messages');
+    }
+  };
+
+  const fetchSenderDetails = async (message: any): Promise<Message> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url')
+        .eq('id', message.sender_id)
+        .single();
       
-      return () => {
-        console.log('Cleaning up subscription');
-        supabase.removeChannel(channel);
+      if (error) throw error;
+      
+      return {
+        ...message,
+        sender: data
       };
     } catch (error) {
-      console.error('Error in fetchConnection:', error);
-      toast.error('An error occurred while loading the conversation');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching sender details:', error);
+      return message;
     }
   };
-  
-  const markMessageAsRead = async (messageId: string) => {
-    try {
-      await supabase
-        .from('messages')
-        .update({ read: true })
-        .eq('id', messageId);
-    } catch (error) {
-      console.error('Error marking message as read:', error);
-    }
-  };
-  
-  const sendMessage = async (e: React.FormEvent) => {
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !connectionId || !user) return;
+    if (!newMessage.trim() || !user || !connectionId) return;
     
-    setSending(true);
+    // Optimistically add the message to the UI
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      connection_id: connectionId,
+      sender_id: user.id,
+      content: newMessage,
+      created_at: new Date().toISOString(),
+      sender: {
+        full_name: user.user_metadata?.full_name || 'You',
+        avatar_url: user.user_metadata?.avatar_url || null
+      }
+    };
+    
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage('');
     
     try {
-      console.log('Sending message using RPC function:', {
-        connection_id_param: connectionId,
-        sender_id_param: user.id,
-        content_param: newMessage.trim()
-      });
-      
-      // Use the RPC function instead of direct insert
       const { data, error } = await supabase
-        .rpc('insert_message', {
-          connection_id_param: connectionId,
-          sender_id_param: user.id,
-          content_param: newMessage.trim()
-        });
+        .from('messages')
+        .insert([
+          {
+            connection_id: connectionId,
+            sender_id: user.id,
+            content: newMessage
+          }
+        ])
+        .select();
       
-      console.log('RPC result:', { data, error });
+      if (error) throw error;
       
-      if (error) {
-        console.error('Error sending message:', error);
-        toast.error(`Failed to send message: ${error.message}`);
-        return;
-      }
-      
-      toast.success('Message sent!');
-      setNewMessage('');
-      
-      // Manually add the message to the UI
-      if (data && data.length > 0) {
-        setMessages(prev => [...prev, data[0]]);
-      }
+      // Replace the optimistic message with the real one if needed
+      // This is optional since we have real-time subscription
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
-    } finally {
-      setSending(false);
+      
+      // Remove the optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+      setNewMessage(optimisticMessage.content);
     }
   };
-  
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  
-  // Get the other user in the connection
-  const otherUser = connection ? 
-    (connection.user1.id === user?.id ? connection.user2 : connection.user1) : 
-    null;
-  
+
+  const getOtherUser = () => {
+    if (!user || !connection) return null;
+    return connection.sender_id === user.id ? connection.receiver : connection.sender;
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <motion.div 
-          className="rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        />
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
       </div>
     );
   }
-  
-  if (!connection || !otherUser) {
+
+  if (error) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-        <h2 className="text-2xl font-bold mb-4">Conversation Not Found</h2>
-        <p className="text-gray-600 mb-6">
-          We couldn't find this conversation. It may have been deleted or you don't have
-          permission to view it.
-        </p>
-        <Link
-          to="/connections"
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Back to Connections
-        </Link>
-      </div>
-    );
-  }
-  
-  if (connection && connection.status !== 'accepted') {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-        <h2 className="text-2xl font-bold mb-4">Connection Not Accepted</h2>
-        <p className="text-gray-600 mb-6">
-          You can only message connections that have been accepted.
-          {connection.user1.id === user?.id 
-            ? " The recipient hasn't accepted your connection request yet."
-            : " Please accept the connection request to start messaging."}
-        </p>
-        <Link
-          to="/connections"
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Back to Connections
-        </Link>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="bg-gray-800 p-4 rounded-t-lg shadow-md flex items-center">
-        <motion.button 
+      <div className="text-center py-10">
+        <div className="text-red-500 mb-4">{error}</div>
+        <button 
           onClick={() => navigate('/connections')}
-          className="mr-4 text-gray-300 hover:text-white"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
         >
+          Back to Connections
+        </button>
+      </div>
+    );
+  }
+
+  const otherUser = getOtherUser();
+
+  return (
+    <div className="max-w-4xl mx-auto bg-gray-800 rounded-lg overflow-hidden shadow-lg flex flex-col h-[calc(100vh-12rem)]">
+      {/* Header */}
+      <div className="bg-gray-900 p-4 flex items-center border-b border-gray-700">
+        <Link to="/connections" className="mr-4 text-gray-400 hover:text-white">
           <ArrowLeft className="h-5 w-5" />
-        </motion.button>
-        
-        {otherUser && (
-          <div className="flex items-center">
-            <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center text-white mr-3">
-              {otherUser.avatar_url ? (
-                <img 
-                  src={otherUser.avatar_url} 
-                  alt={otherUser.full_name} 
-                  className="h-10 w-10 rounded-full object-cover"
-                />
-              ) : (
-                otherUser.full_name.charAt(0).toUpperCase()
-              )}
-            </div>
-            <div>
-              <h2 className="font-semibold text-white">{otherUser.full_name}</h2>
-              <p className="text-xs text-gray-400">
-                {connection?.status === 'accepted' ? 'Connected' : 'Pending'}
-              </p>
-            </div>
+        </Link>
+        <div className="flex items-center">
+          <div className="h-10 w-10 rounded-full bg-gray-700 flex items-center justify-center mr-3">
+            {otherUser?.avatar_url ? (
+              <img 
+                src={otherUser.avatar_url} 
+                alt={otherUser?.full_name} 
+                className="h-10 w-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold">
+                {otherUser?.full_name?.charAt(0) || '?'}
+              </div>
+            )}
           </div>
-        )}
+          <div>
+            <h2 className="font-semibold">{otherUser?.full_name || 'User'}</h2>
+          </div>
+        </div>
       </div>
       
       {/* Messages */}
-      <div className="bg-gray-900 p-4 h-[60vh] overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-900">
         {messages.length === 0 ? (
-          <div className="flex justify-center items-center h-full">
-            <p className="text-gray-400 text-center">
-              No messages yet. Start the conversation!
-            </p>
+          <div className="text-center text-gray-500 py-8">
+            No messages yet. Start the conversation!
           </div>
         ) : (
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <motion.div
-                key={message.id}
-                className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[75%] rounded-lg px-4 py-2 ${
+                  message.sender_id === user?.id
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-white'
+                }`}
               >
-                <div 
-                  className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                    message.sender_id === user?.id 
-                      ? 'bg-purple-600 text-white' 
-                      : 'bg-gray-800 text-white'
-                  }`}
-                >
-                  <p>{message.content}</p>
-                  <p className="text-xs opacity-70 mt-1">
-                    {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+                <div className="text-sm">{message.content}</div>
+                <div className="text-xs mt-1 opacity-70">{formatTime(message.created_at)}</div>
+              </div>
+            </div>
+          ))
         )}
+        <div ref={messagesEndRef} />
       </div>
       
       {/* Message Input */}
-      <form onSubmit={sendMessage} className="bg-gray-800 p-4 rounded-b-lg shadow-md flex">
+      <form onSubmit={handleSendMessage} className="p-4 bg-gray-800 border-t border-gray-700 flex">
         <input
           type="text"
           value={newMessage}

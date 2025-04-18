@@ -4,29 +4,24 @@ import { MessageCircle, UserPlus, Check, X, Clock, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
+import { MessageSquare, UserX, UserCheck } from 'lucide-react';
 
 interface Connection {
   id: string;
-  requester_id: string;
-  recipient_id: string;
-  status: string;
+  status: 'pending' | 'accepted' | 'rejected';
   created_at: string;
-  updated_at: string;
-  requester?: {
+  sender_id: string;
+  receiver_id: string;
+  sender?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
-  recipient?: {
+  receiver?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
-  };
-  unread_count?: number;
-  last_message?: {
-    content: string;
-    created_at: string;
-    sender_id: string;
   };
 }
 
@@ -35,6 +30,7 @@ export default function Connections() {
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'accepted'>('all');
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     if (user) {
@@ -43,67 +39,177 @@ export default function Connections() {
   }, [user]);
   
   const fetchConnections = async () => {
-    if (!user) return;
-    
     setLoading(true);
+    setError(null);
     
     try {
-      // Fetch all connections where the current user is either the requester or recipient
-      const { data, error } = await supabase
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      // First, try with sender_id/receiver_id columns
+      let { data, error } = await supabase
         .from('connections')
         .select(`
           id,
-          requester_id,
-          recipient_id,
           status,
           created_at,
-          updated_at,
-          requester:profiles!requester_id(id, full_name, avatar_url),
-          recipient:profiles!recipient_id(id, full_name, avatar_url)
+          sender_id,
+          receiver_id,
+          sender:profiles!sender_id(id, full_name, avatar_url),
+          receiver:profiles!receiver_id(id, full_name, avatar_url)
         `)
-        .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
-        .order('updated_at', { ascending: false });
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
       
-      if (error) {
-        console.error('Error fetching connections:', error);
-        toast.error('Failed to load connections');
-        setLoading(false);
-        return;
+      // If there's an error with the column names, try with requester_id/recipient_id
+      if (error && (error.code === 'PGRST200' || error.code === '42703')) {
+        console.log('Trying alternative column names (requester_id/recipient_id)');
+        
+        const { data: altData, error: altError } = await supabase
+          .from('connections')
+          .select(`
+            id,
+            status,
+            created_at,
+            requester_id,
+            recipient_id,
+            requester:profiles!requester_id(id, full_name, avatar_url),
+            recipient:profiles!recipient_id(id, full_name, avatar_url)
+          `)
+          .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+        
+        if (altError) {
+          // If both queries fail, try a simpler query without joins
+          console.log('Falling back to simpler query without joins');
+          
+          // Try with sender_id/receiver_id first
+          const { data: simpleData, error: simpleError } = await supabase
+            .from('connections')
+            .select('*')
+            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+            .order('created_at', { ascending: false });
+          
+          if (simpleError && simpleError.code === '42703') {
+            // If that fails, try with requester_id/recipient_id
+            const { data: altSimpleData, error: altSimpleError } = await supabase
+              .from('connections')
+              .select('*')
+              .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+              .order('created_at', { ascending: false });
+            
+            if (altSimpleError) throw altSimpleError;
+            
+            // Map the data to use sender_id/receiver_id naming
+            data = (altSimpleData || []).map(conn => ({
+              ...conn,
+              sender_id: conn.requester_id,
+              receiver_id: conn.recipient_id,
+              // We'll fetch profiles separately
+            }));
+          } else if (simpleError) {
+            throw simpleError;
+          } else {
+            data = simpleData;
+          }
+          
+          // If we got connections, fetch the profiles separately
+          if (data && data.length > 0) {
+            // Get all user IDs we need to fetch
+            const userIds = new Set<string>();
+            data.forEach((conn: any) => {
+              userIds.add(conn.sender_id || conn.requester_id);
+              userIds.add(conn.receiver_id || conn.recipient_id);
+            });
+            
+            // Fetch all profiles in one query
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .in('id', Array.from(userIds));
+            
+            if (profilesError) throw profilesError;
+            
+            // Create a map of profiles by ID for easy lookup
+            const profilesMap = (profilesData || []).reduce((map, profile) => {
+              map[profile.id] = profile;
+              return map;
+            }, {} as Record<string, any>);
+            
+            // Combine the data
+            data = data.map((conn: any) => ({
+              ...conn,
+              sender_id: conn.sender_id || conn.requester_id,
+              receiver_id: conn.receiver_id || conn.recipient_id,
+              sender: profilesMap[conn.sender_id || conn.requester_id] || { id: conn.sender_id || conn.requester_id, full_name: 'Unknown User' },
+              receiver: profilesMap[conn.receiver_id || conn.recipient_id] || { id: conn.receiver_id || conn.recipient_id, full_name: 'Unknown User' }
+            }));
+          }
+        } else {
+          // Map the data to use sender_id/receiver_id naming
+          data = (altData || []).map(conn => ({
+            ...conn,
+            sender_id: conn.requester_id,
+            receiver_id: conn.recipient_id,
+            sender: conn.requester,
+            receiver: conn.recipient
+          }));
+        }
+      } else if (error) {
+        throw error;
       }
       
+      console.log('Connections data:', data);
       setConnections(data || []);
     } catch (error) {
       console.error('Error fetching connections:', error);
+      setError('Failed to load connections. Please try again later.');
       toast.error('Failed to load connections');
     } finally {
       setLoading(false);
     }
   };
   
-  const updateConnectionStatus = async (connectionId: string, status: 'accepted' | 'rejected') => {
+  const handleAcceptConnection = async (connectionId: string) => {
     try {
       const { error } = await supabase
         .from('connections')
-        .update({ status })
+        .update({ status: 'accepted' })
         .eq('id', connectionId);
       
-      if (error) {
-        console.error(`Error updating connection status:`, error);
-        toast.error(`Failed to ${status} connection`);
-        return;
-      }
-      
-      toast.success(`Connection ${status}`);
+      if (error) throw error;
       
       // Update local state
-      setConnections(prev => 
-        prev.map(conn => 
-          conn.id === connectionId ? { ...conn, status } : conn
-        )
-      );
+      setConnections(connections.map(conn => 
+        conn.id === connectionId ? { ...conn, status: 'accepted' } : conn
+      ));
+      
+      toast.success('Connection accepted');
     } catch (error) {
-      console.error(`Error ${status} connection:`, error);
-      toast.error(`Failed to ${status} connection`);
+      console.error('Error accepting connection:', error);
+      toast.error('Failed to accept connection');
+    }
+  };
+  
+  const handleRejectConnection = async (connectionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('connections')
+        .update({ status: 'rejected' })
+        .eq('id', connectionId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setConnections(connections.map(conn => 
+        conn.id === connectionId ? { ...conn, status: 'rejected' } : conn
+      ));
+      
+      toast.success('Connection rejected');
+    } catch (error) {
+      console.error('Error rejecting connection:', error);
+      toast.error('Failed to reject connection');
     }
   };
   
@@ -116,13 +222,81 @@ export default function Connections() {
   };
   
   const getOtherUser = (connection: Connection) => {
-    return connection.requester_id === user?.id ? connection.recipient : connection.requester;
+    if (!user) return null;
+    return connection.sender_id === user.id ? connection.receiver : connection.sender;
   };
   
-  if (loading && connections.length === 0) {
+  const renderConnectionStatus = (connection: Connection) => {
+    if (connection.status === 'pending') {
+      if (connection.receiver_id === user?.id) {
+        return (
+          <div className="flex space-x-2">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-green-600 text-white px-3 py-1 rounded-md text-sm"
+              onClick={() => handleAcceptConnection(connection.id)}
+            >
+              <UserCheck className="h-4 w-4 inline mr-1" />
+              Accept
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-red-600 text-white px-3 py-1 rounded-md text-sm"
+              onClick={() => handleRejectConnection(connection.id)}
+            >
+              <UserX className="h-4 w-4 inline mr-1" />
+              Decline
+            </motion.button>
+          </div>
+        );
+      } else {
+        return (
+          <span className="text-yellow-500 flex items-center">
+            <Clock className="h-4 w-4 mr-1" />
+            Pending
+          </span>
+        );
+      }
+    } else if (connection.status === 'accepted') {
+      return (
+        <Link
+          to={`/messages/${connection.id}`}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-sm inline-flex items-center"
+        >
+          <MessageSquare className="h-4 w-4 mr-1" />
+          Message
+        </Link>
+      );
+    } else {
+      return (
+        <span className="text-red-500 flex items-center">
+          <UserX className="h-4 w-4 mr-1" />
+          Declined
+        </span>
+      );
+    }
+  };
+  
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="text-center py-10">
+        <div className="text-red-500 mb-4">{error}</div>
+        <button 
+          onClick={fetchConnections}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -191,106 +365,44 @@ export default function Connections() {
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <ul className="divide-y divide-gray-200">
-            {getFilteredConnections().map((connection) => {
-              const otherUser = getOtherUser(connection);
-              const isPending = connection.status === 'pending';
-              const isRequester = connection.requester_id === user?.id;
-              const pendingIncoming = isPending && !isRequester;
-              
-              return (
-                <li key={connection.id} className="hover:bg-gray-50">
-                  {isPending ? (
-                    <div className="px-6 py-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
-                            {otherUser?.avatar_url ? (
-                              <img
-                                src={otherUser.avatar_url}
-                                alt={otherUser?.full_name}
-                                className="w-12 h-12 rounded-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-indigo-600 font-medium text-lg">
-                                {otherUser?.full_name.charAt(0)}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {otherUser?.full_name}
-                            </h3>
-                            <div className="flex items-center text-sm text-gray-500">
-                              <Clock className="h-4 w-4 mr-1" />
-                              <span>
-                                {pendingIncoming
-                                  ? 'Wants to connect with you'
-                                  : 'Connection request sent'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {pendingIncoming ? (
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => updateConnectionStatus(connection.id, 'accepted')}
-                              className="flex items-center justify-center bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700"
-                              title="Accept"
-                            >
-                              <Check className="h-5 w-5" />
-                            </button>
-                            <button
-                              onClick={() => updateConnectionStatus(connection.id, 'rejected')}
-                              className="flex items-center justify-center bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700"
-                              title="Reject"
-                            >
-                              <X className="h-5 w-5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-500">
-                            {new Date(connection.created_at).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <Link to={`/messages/${connection.id}`} className="block px-6 py-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
-                            {otherUser?.avatar_url ? (
-                              <img
-                                src={otherUser.avatar_url}
-                                alt={otherUser?.full_name}
-                                className="w-12 h-12 rounded-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-indigo-600 font-medium text-lg">
-                                {otherUser?.full_name.charAt(0)}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {otherUser?.full_name}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              Click to view conversation
-                            </p>
-                          </div>
-                        </div>
-                        <MessageCircle className="h-5 w-5 text-indigo-600" />
-                      </div>
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        <div className="space-y-4">
+          {getFilteredConnections().map((connection) => {
+            const otherUser = getOtherUser(connection);
+            if (!otherUser) return null;
+            
+            return (
+              <motion.div
+                key={connection.id}
+                className="bg-gray-800 rounded-lg p-4 flex items-center justify-between"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full bg-gray-700 flex items-center justify-center mr-4">
+                    {otherUser.avatar_url ? (
+                      <img 
+                        src={otherUser.avatar_url} 
+                        alt={otherUser.full_name} 
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{otherUser.full_name}</h3>
+                    <p className="text-sm text-gray-400">
+                      {connection.sender_id === user?.id ? 'You sent a request' : 'Sent you a request'}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  {renderConnectionStatus(connection)}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>

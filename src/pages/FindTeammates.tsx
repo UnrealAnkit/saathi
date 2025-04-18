@@ -17,6 +17,13 @@ interface UserProfile {
   connection_id?: string;
 }
 
+// Define an interface for hackathon interests
+interface HackathonInterest {
+  id: string;
+  name: string;
+  // Add any other properties that might be in the hackathon_interests table
+}
+
 export default function FindTeammates() {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -99,14 +106,14 @@ export default function FindTeammates() {
               .eq('profile_id', profile.id);
               
             // Fetch hackathon interests - wrap in try/catch to handle missing table
-            let hackathonInterests = [];
+            let hackathonInterests: HackathonInterest[] = [];
             try {
               const { data: interestsData } = await supabase
                 .from('hackathon_interests')
                 .select('interest')
                 .eq('profile_id', profile.id);
                 
-              hackathonInterests = interestsData?.map(i => i.interest) || [];
+              hackathonInterests = interestsData?.map(i => ({ id: i.interest, name: i.interest })) || [];
             } catch (error) {
               console.log('Hackathon interests table may not exist yet:', error);
             }
@@ -115,7 +122,7 @@ export default function FindTeammates() {
               ...profile,
               skills: skillsData || [],
               languages: languagesData || [],
-              hackathon_interests: hackathonInterests,
+              hackathon_interests: hackathonInterests.map(i => i.name),
               connection_status: 'none',
               connection_id: null
             };
