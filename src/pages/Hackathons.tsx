@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Calendar, MapPin, Users } from 'lucide-react';
+import { Plus, Calendar, MapPin, Users, ExternalLink } from 'lucide-react';
 import { supabase, type Hackathon } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import CreateHackathonModal from '../components/CreateHackathonModal';
 import { Link } from 'react-router-dom';
+import DevfolioImport from '../components/DevfolioImport';
 
 interface Hackathon {
   id: string;
@@ -24,6 +25,7 @@ export default function Hackathons() {
   const [hackathons, setHackathons] = useState<Hackathon[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDevfolioImport, setShowDevfolioImport] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -59,14 +61,22 @@ export default function Hackathons() {
     <div className="max-w-6xl mx-auto px-4">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Hackathons</h1>
-        {user && (
+        <div className="flex gap-2">
           <button
             onClick={() => setShowCreateModal(true)}
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
           >
             Create Hackathon
           </button>
-        )}
+          
+          <button
+            onClick={() => setShowDevfolioImport(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md flex items-center"
+          >
+            <ExternalLink className="h-5 w-5 mr-2" />
+            Import from Devfolio
+          </button>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -155,6 +165,19 @@ export default function Hackathons() {
             loadHackathons();
           }}
         />
+      )}
+
+      {showDevfolioImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="max-w-2xl w-full">
+            <DevfolioImport 
+              onImportComplete={() => {
+                setShowDevfolioImport(false);
+                loadHackathons();
+              }} 
+            />
+          </div>
+        </div>
       )}
     </div>
   );
