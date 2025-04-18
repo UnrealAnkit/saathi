@@ -84,6 +84,45 @@ Notifications for new messages or hackathon matches
 📸 UI Preview
 Coming soon…
 
+🚧 How to Recreate This Bounty (Quick Start with Git)
+Want to recreate or contribute to this project? Follow these steps:
+
+1. Clone the Repository
+bash
+Copy
+Edit
+git clone https://github.com/UnrealAnkit/saathi.git
+cd saathi
+2. Install Dependencies (if applicable)
+If you're using a backend or build tools (e.g., Node.js, Express), install dependencies:
+
+bash
+Copy
+Edit
+npm install
+Skip this step if it’s a simple HTML/CSS/JS frontend project without a package manager.
+
+3. Run the Project
+For simple frontend:
+
+Just open index.html in your browser.
+
+For backend setup:
+
+bash
+Copy
+Edit
+npm start
+4. Make Changes
+Edit the code to add your own features, filters, or UI enhancements.
+
+5. Push Your Version (Optional)
+bash
+Copy
+Edit
+git remote set-url origin <your-forked-repo-url>
+git push -u origin main
+
 🤝 Contributing
 Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
