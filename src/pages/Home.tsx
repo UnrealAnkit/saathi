@@ -94,35 +94,24 @@ export default function Home() {
       {/* Hero Section with Animation */}
       <motion.div 
         className="relative bg-gray-900 rounded-xl p-8 mb-12 text-white shadow-lg overflow-hidden"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
       >
-        {/* Background animation */}
-        <motion.div 
+        {/* Static background gradient instead of animated div */}
+        <div 
           className="absolute top-0 right-0 w-96 h-96 bg-purple-500 opacity-10 rounded-full"
-          animate={{ 
-            x: [0, 10, 0], 
-            y: [0, 15, 0],
-            scale: [1, 1.05, 1]
-          }}
-          transition={{ 
-            repeat: Infinity, 
-            duration: 8,
-            ease: "easeInOut" 
-          }}
           style={{ filter: "blur(40px)" }}
         />
         
         <div className="max-w-3xl relative z-10">
           <motion.div
-            initial={{ y: -20, opacity: 0 }}
+            initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <NeonText color="purple" size="3xl" glow animate>
+            <h1 className="text-3xl font-bold text-purple-500 mb-4">
               Find Your Perfect Hackathon Teammates
-            </NeonText>
+            </h1>
           </motion.div>
           
           <motion.p 
@@ -282,7 +271,9 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7 }}
       >
-        <h2 className="text-2xl font-bold mb-6 text-center">How It Works</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center text-purple-500">
+          How It Works
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <motion.div 
             className="bg-white p-6 rounded-lg shadow-md text-center"

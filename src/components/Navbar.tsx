@@ -56,54 +56,56 @@ export default function Navbar() {
               )}
             </div>
           </div>
-          <div className="hidden md:flex md:items-center">
-            {user ? (
-              <div className="relative ml-3">
-                <div className="flex items-center">
-                  <motion.div 
-                    className="flex items-center"
-                    whileHover={{ scale: 1.05 }}
-                  >
-                    <Link
-                      to="/profile"
-                      className="bg-gray-800 p-1 rounded-full text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white mr-3"
+          <div className="flex items-center">
+            <div className="hidden md:flex md:items-center">
+              {user ? (
+                <div className="relative ml-3">
+                  <div className="flex items-center">
+                    <motion.div 
+                      className="flex items-center"
+                      whileHover={{ scale: 1.05 }}
                     >
-                      <User className="h-6 w-6" />
-                    </Link>
-                  </motion.div>
-                  <motion.button
-                    onClick={handleSignOut}
-                    className="bg-gray-800 p-1 rounded-full text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <LogOut className="h-6 w-6" />
-                  </motion.button>
+                      <Link
+                        to="/profile"
+                        className="bg-gray-800 p-1 rounded-full text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white mr-3"
+                      >
+                        <User className="h-6 w-6" />
+                      </Link>
+                    </motion.div>
+                    <motion.button
+                      onClick={handleSignOut}
+                      className="bg-gray-800 p-1 rounded-full text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <LogOut className="h-6 w-6" />
+                    </motion.button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link
-                  to="/auth"
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                >
-                  Login / Sign Up
-                </Link>
-              </motion.div>
-            )}
-          </div>
-          <div className="-mr-2 flex md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-            >
-              <span className="sr-only">Open main menu</span>
-              {isMenuOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
               ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link
+                    to="/auth"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Login / Sign Up
+                  </Link>
+                </motion.div>
               )}
-            </button>
+            </div>
+            <div className="md:hidden ml-2">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+              >
+                <span className="sr-only">Open main menu</span>
+                {isMenuOpen ? (
+                  <X className="block h-6 w-6" aria-hidden="true" />
+                ) : (
+                  <Menu className="block h-6 w-6" aria-hidden="true" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

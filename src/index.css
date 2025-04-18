@@ -71,16 +71,16 @@ body {
 }
 
 /* Neon text effects */
-.neon-text-purple {
-  text-shadow: 0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px #a855f7, 0 0 82px #a855f7, 0 0 92px #a855f7, 0 0 102px #a855f7, 0 0 151px #a855f7;
+.text-shadow-purple {
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.7);
 }
 
-.neon-text-blue {
-  text-shadow: 0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px #3b82f6, 0 0 82px #3b82f6, 0 0 92px #3b82f6, 0 0 102px #3b82f6, 0 0 151px #3b82f6;
+.text-shadow-blue {
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
 }
 
-.neon-text-green {
-  text-shadow: 0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px #10b981, 0 0 82px #10b981, 0 0 92px #10b981, 0 0 102px #10b981, 0 0 151px #10b981;
+.text-shadow-green {
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
 }
 
 /* Animated background gradient */

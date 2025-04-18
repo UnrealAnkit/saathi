@@ -34,9 +34,9 @@ export default function NeonText({
   };
   
   const glowClasses = glow ? {
-    purple: 'neon-text-purple',
-    blue: 'neon-text-blue',
-    green: 'neon-text-green'
+    purple: 'text-shadow-purple',
+    blue: 'text-shadow-blue',
+    green: 'text-shadow-green'
   } : {};
   
   const classes = `font-bold ${colorClasses[color]} ${sizeClasses[size]} ${glow ? glowClasses[color] : ''} ${className}`;
@@ -46,14 +46,10 @@ export default function NeonText({
       <motion.span 
         className={classes}
         animate={{ 
-          textShadow: glow ? [
-            `0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px currentColor, 0 0 82px currentColor, 0 0 92px currentColor, 0 0 102px currentColor, 0 0 151px currentColor`,
-            `0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px currentColor, 0 0 72px currentColor, 0 0 82px currentColor, 0 0 92px currentColor, 0 0 102px currentColor`,
-            `0 0 7px #fff, 0 0 10px #fff, 0 0 21px #fff, 0 0 42px currentColor, 0 0 82px currentColor, 0 0 92px currentColor, 0 0 102px currentColor, 0 0 151px currentColor`
-          ] : undefined
+          opacity: [0.9, 1, 0.9]
         }}
         transition={{ 
-          duration: 1.5, 
+          duration: 2, 
           repeat: Infinity, 
           repeatType: "reverse" 
         }}

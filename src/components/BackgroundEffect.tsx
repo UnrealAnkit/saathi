@@ -19,7 +19,7 @@ export default function BackgroundEffect() {
     setCanvasDimensions();
     window.addEventListener('resize', setCanvasDimensions);
 
-    // Particle class
+    // Particle class - simplified for better performance
     class Particle {
       x: number;
       y: number;
@@ -31,16 +31,14 @@ export default function BackgroundEffect() {
       constructor() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 3 + 1;
-        this.speedX = Math.random() * 1 - 0.5;
-        this.speedY = Math.random() * 1 - 0.5;
+        this.size = Math.random() * 2 + 1; // Smaller particles
+        this.speedX = Math.random() * 0.5 - 0.25; // Slower movement
+        this.speedY = Math.random() * 0.5 - 0.25; // Slower movement
         
-        // Purple/blue color palette
+        // Simplified color palette
         const colors = [
-          'rgba(147, 51, 234, 0.5)',  // Purple
-          'rgba(79, 70, 229, 0.5)',   // Indigo
-          'rgba(59, 130, 246, 0.5)',  // Blue
-          'rgba(139, 92, 246, 0.5)',  // Violet
+          'rgba(147, 51, 234, 0.3)',  // Purple with lower opacity
+          'rgba(79, 70, 229, 0.3)',   // Indigo with lower opacity
         ];
         this.color = colors[Math.floor(Math.random() * colors.length)];
       }
@@ -67,20 +65,32 @@ export default function BackgroundEffect() {
       }
     }
 
-    // Create particles
-    const particleCount = Math.min(100, Math.floor(window.innerWidth * window.innerHeight / 10000));
+    // Create fewer particles
+    const particleCount = Math.min(50, Math.floor(window.innerWidth * window.innerHeight / 20000));
     const particles: Particle[] = [];
     
     for (let i = 0; i < particleCount; i++) {
       particles.push(new Particle());
     }
 
-    // Animation loop
-    const animate = () => {
+    // Animation loop with throttling
+    let lastTime = 0;
+    const fps = 30; // Lower FPS for better performance
+    const fpsInterval = 1000 / fps;
+
+    const animate = (timestamp: number) => {
       if (!ctx) return;
       
-      // Clear canvas with semi-transparent background for trail effect
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.05)'; // Dark gray with opacity
+      // Throttle the animation
+      const elapsed = timestamp - lastTime;
+      if (elapsed < fpsInterval) {
+        requestAnimationFrame(animate);
+        return;
+      }
+      lastTime = timestamp - (elapsed % fpsInterval);
+      
+      // Clear canvas with semi-transparent background
+      ctx.fillStyle = 'rgba(17, 24, 39, 0.2)'; // Darker background with higher opacity
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Update and draw particles
@@ -89,16 +99,16 @@ export default function BackgroundEffect() {
         particle.draw();
       });
       
-      // Draw connections between particles
+      // Draw connections between particles - only connect nearby particles
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          if (distance < 100) {
+          if (distance < 80) { // Reduced connection distance
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(139, 92, 246, ${0.1 * (1 - distance / 100)})`; // Purple with distance-based opacity
+            ctx.strokeStyle = `rgba(139, 92, 246, ${0.05 * (1 - distance / 80)})`; // Lower opacity
             ctx.lineWidth = 0.5;
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
@@ -110,7 +120,7 @@ export default function BackgroundEffect() {
       requestAnimationFrame(animate);
     };
 
-    animate();
+    requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', setCanvasDimensions);

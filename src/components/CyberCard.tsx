@@ -38,14 +38,13 @@ export default function CyberCard({ children, className = '', glitch = false }: 
         <motion.div
           className="absolute inset-0 bg-purple-500 opacity-0 mix-blend-overlay"
           animate={{ 
-            opacity: [0, 0.5, 0],
-            x: [-10, 5, 0],
+            opacity: [0, 0.3, 0]
           }}
           transition={{ 
             duration: 0.2, 
             repeat: Infinity, 
             repeatType: "mirror",
-            repeatDelay: Math.random() * 5 + 5
+            repeatDelay: 8 // Much longer delay between glitches
           }}
         />
       )}
