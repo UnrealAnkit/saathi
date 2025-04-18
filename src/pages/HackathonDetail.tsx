@@ -14,8 +14,8 @@ interface Hackathon {
   end_date: string;
   location: string;
   format: 'online' | 'in_person' | 'hybrid';
-  website_url: string;
-  image_url: string;
+  website_url?: string;
+  image_url?: string;
   created_by: string;
   creator?: {
     full_name: string;
@@ -52,18 +52,32 @@ export default function HackathonDetail() {
   const fetchHackathonDetails = async () => {
     setLoading(true);
     try {
-      // Fetch hackathon details
+      // Fetch hackathon details without the join
       const { data: hackathonData, error: hackathonError } = await supabase
         .from('hackathons')
-        .select(`
-          *,
-          creator:profiles!created_by(full_name)
-        `)
+        .select('*')
         .eq('id', hackathonId)
         .single();
 
       if (hackathonError) throw hackathonError;
       setHackathon(hackathonData);
+
+      // If we need creator details, fetch them separately
+      if (hackathonData.created_by) {
+        const { data: creatorData, error: creatorError } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', hackathonData.created_by)
+          .single();
+        
+        if (!creatorError && creatorData) {
+          // Manually add the creator data to the hackathon object
+          setHackathon({
+            ...hackathonData,
+            creator: creatorData
+          });
+        }
+      }
 
       // Fetch participants
       const { data: participantsData, error: participantsError } = await supabase
@@ -79,9 +93,13 @@ export default function HackathonDetail() {
 
       // Check if current user is participating
       if (user) {
-        const userParticipation = participantsData?.find(p => p.profile_id === user.id);
-        setParticipating(!!userParticipation);
-        setParticipationStatus(userParticipation?.status || null);
+        const isParticipating = participantsData?.some(p => p.profile_id === user.id);
+        setParticipating(isParticipating || false);
+        
+        if (isParticipating) {
+          const status = participantsData?.find(p => p.profile_id === user.id)?.status;
+          setParticipationStatus(status as any || null);
+        }
       }
     } catch (error) {
       console.error('Error fetching hackathon details:', error);

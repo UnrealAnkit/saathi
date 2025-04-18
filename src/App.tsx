@@ -13,6 +13,7 @@ import HackathonDetail from './pages/HackathonDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { setupDatabase } from './lib/setupDatabase';
 import { supabase } from './lib/supabase';
+import ProfileView from './pages/ProfileView';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -129,6 +130,10 @@ function App() {
                 }
               />
               <Route path="/hackathons/:hackathonId" element={<HackathonDetail />} />
+              <Route 
+                path="/profile/:profileId" 
+                element={<ProfileView />} 
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

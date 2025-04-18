@@ -19,6 +19,7 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
   const [location, setLocation] = useState('');
   const [format, setFormat] = useState('online');
   const [loading, setLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,17 +41,20 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
       console.log('Current user:', user);
       
       // Create the hackathon without any owner/creator field
+      const hackathonData = {
+        title: name,
+        description,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        location: location || null,
+        format: format || null,
+        image_url: imageUrl || null,
+        created_by: user?.id
+      };
+      
       const { data, error } = await supabase
         .from('hackathons')
-        .insert({
-          title: name,
-          description,
-          start_date: startDate || null,
-          end_date: endDate || null,
-          location: location || null,
-          format: format || null
-          // No owner_id or created_by field
-        })
+        .insert(hackathonData)
         .select();
       
       if (error) {
@@ -158,6 +162,20 @@ export default function CreateHackathonModal({ onClose, onSuccess }: CreateHacka
                   <option value="in_person">In Person</option>
                   <option value="hybrid">Hybrid</option>
                 </select>
+              </div>
+              
+              <div>
+                <label htmlFor="imageUrl" className="block text-sm font-medium mb-1">
+                  Image URL (optional)
+                </label>
+                <input
+                  id="imageUrl"
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md"
+                />
               </div>
               
               <div className="flex justify-end space-x-3">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Github, Linkedin, Globe } from 'lucide-react';
+import { Camera, Github, Linkedin, Globe, User, MapPin, Clock, Calendar, Code, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -38,6 +38,8 @@ interface Profile {
   github_url: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  bio?: string;
+  availability_status?: string;
 }
 
 export default function Profile() {
@@ -411,322 +413,247 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-32 relative">
-          <div className="absolute -bottom-16 left-8">
-            <div className="relative">
-              <img
-                src={profile?.avatar_url || 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=120&h=120&fit=crop'}
-                alt="Profile"
-                className="w-32 h-32 rounded-full border-4 border-white object-cover"
-              />
-              <label className="absolute bottom-0 right-0 bg-gray-100 p-2 rounded-full hover:bg-gray-200 cursor-pointer">
-                <Camera className="h-5 w-5 text-gray-600" />
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={uploadAvatar}
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+        {/* Profile header with cover image and avatar */}
+        <div className="h-48 bg-gradient-to-r from-purple-600 to-indigo-700 relative">
+          {/* Avatar */}
+          <div className="absolute -bottom-16 left-6">
+            <div className="w-32 h-32 rounded-full border-4 border-gray-800 overflow-hidden bg-gray-700 flex items-center justify-center">
+              {profile.avatar_url ? (
+                <img 
+                  src={profile.avatar_url} 
+                  alt={profile.full_name || 'Profile'} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name || '')}&background=7C3AED&color=fff`;
+                  }}
                 />
-              </label>
+              ) : (
+                <User className="h-12 w-12 text-gray-400" />
+              )}
             </div>
           </div>
-        </div>
-
-        <div className="pt-20 px-4 sm:px-8 pb-8">
-          {isEditing ? (
-            <div className="mb-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  name="full_name"
-                  value={formData.full_name}
-                  onChange={handleInputChange}
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location || ''}
-                  onChange={handleInputChange}
-                  placeholder="City, Country"
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Timezone
-                </label>
-                <input
-                  type="text"
-                  name="timezone"
-                  value={formData.timezone || ''}
-                  onChange={handleInputChange}
-                  placeholder="e.g., GMT+5:30"
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  GitHub URL
-                </label>
-                <input
-                  type="url"
-                  name="github_url"
-                  value={formData.github_url || ''}
-                  onChange={handleInputChange}
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  LinkedIn URL
-                </label>
-                <input
-                  type="url"
-                  name="linkedin_url"
-                  value={formData.linkedin_url || ''}
-                  onChange={handleInputChange}
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Website URL
-                </label>
-                <input
-                  type="url"
-                  name="website_url"
-                  value={formData.website_url || ''}
-                  onChange={handleInputChange}
-                  className="w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 border rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveProfile}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row justify-between items-start mb-6">
-              <div className="mb-4 sm:mb-0">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {profile?.full_name || 'Your Name'}
-                </h1>
-                <p className="text-gray-600">
-                  {profile?.location || 'Add your location'} • {profile?.timezone || 'Add your timezone'}
-                </p>
-              </div>
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto"
-              >
-              Edit Profile
+          
+          {/* Edit profile button */}
+          <div className="absolute top-4 right-4">
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="bg-gray-900 bg-opacity-50 hover:bg-opacity-70 text-white px-4 py-2 rounded-md flex items-center"
+            >
+              {isEditing ? 'Cancel' : 'Edit Profile'}
             </button>
           </div>
-          )}
-
-          <div className="flex space-x-4 mb-8">
-            {profile?.github_url && (
-              <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-              <Github className="h-5 w-5" />
-            </a>
+        </div>
+        
+        {/* Profile info */}
+        <div className="pt-20 px-6 pb-6">
+          <h1 className="text-2xl font-bold text-white">{profile.full_name || 'Add your name'}</h1>
+          
+          <div className="mt-2 flex flex-wrap gap-4 text-gray-300">
+            {profile.location && (
+              <div className="flex items-center">
+                <MapPin className="h-5 w-5 mr-1 text-purple-400" />
+                <span>{profile.location}</span>
+              </div>
             )}
-            {profile?.linkedin_url && (
-              <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-              <Linkedin className="h-5 w-5" />
-            </a>
+            
+            {profile.timezone && (
+              <div className="flex items-center">
+                <Clock className="h-5 w-5 mr-1 text-purple-400" />
+                <span>{profile.timezone}</span>
+              </div>
             )}
-            {profile?.website_url && (
-              <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-              <Globe className="h-5 w-5" />
-            </a>
+            
+            {profile.availability_status && (
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 mr-1 text-purple-400" />
+                <span>{profile.availability_status}</span>
+              </div>
             )}
           </div>
-
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold mb-4">Skills</h2>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {skills.map((skill) => (
-                  <span
-                    key={skill.id}
-                    className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm"
-                  >
-                    {skill.name} • {skill.proficiency_level}
-                  </span>
-                ))}
-              </div>
-              
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={newSkill}
-                  onChange={(e) => setNewSkill(e.target.value)}
-                  placeholder="Add a skill..."
-                  className="w-full border rounded-md px-3 py-2"
-                />
-                <div className="flex gap-2">
-                <select
-                  value={newSkillLevel}
-                  onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
-                    className="flex-1 border rounded-md px-3 py-2"
-                >
-                  {skillLevels.map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={addSkill}
-                    className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
-                >
-                    Add Skill
-                </button>
-                </div>
-              </div>
+          
+          {/* Social links */}
+          <div className="mt-4 flex gap-4">
+            {profile.github_url && (
+              <a 
+                href={profile.github_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white flex items-center"
+              >
+                <Github className="h-5 w-5 mr-1" />
+                GitHub
+              </a>
+            )}
+            
+            {profile.linkedin_url && (
+              <a 
+                href={profile.linkedin_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white flex items-center"
+              >
+                <Linkedin className="h-5 w-5 mr-1" />
+                LinkedIn
+              </a>
+            )}
+            
+            {profile.website_url && (
+              <a 
+                href={profile.website_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white flex items-center"
+              >
+                <Globe className="h-5 w-5 mr-1" />
+                Website
+              </a>
+            )}
+          </div>
+          
+          {profile.bio && (
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold mb-2 text-white">About</h2>
+              <p className="text-gray-300">{profile.bio}</p>
             </div>
-
+          )}
+        </div>
+        
+        {/* Skills, languages, and interests */}
+        <div className="border-t border-gray-700 px-6 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Skills section */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">Languages</h2>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {languages.map((lang) => (
-                  <span
-                    key={lang.id}
-                    className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm"
-                  >
-                    {lang.language} • {lang.proficiency_level}
-                  </span>
-                ))}
-              </div>
-              
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={newLanguage}
-                  onChange={(e) => setNewLanguage(e.target.value)}
-                  placeholder="Add a language..."
-                  className="w-full border rounded-md px-3 py-2"
-                />
-                <div className="flex gap-2">
-                  <select
-                    value={newLanguageLevel}
-                    onChange={(e) => setNewLanguageLevel(e.target.value as LanguageLevel)}
-                    className="flex-1 border rounded-md px-3 py-2"
-                  >
-                    {languageLevels.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-white flex items-center">
+                  <Code className="h-5 w-5 mr-2 text-purple-400" />
+                  Skills
+                </h2>
+                {isEditing && (
                   <button
-                    onClick={addLanguage}
-                    className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
+                    onClick={() => setShowSkillModal(true)}
+                    className="text-purple-400 hover:text-purple-300 text-sm"
                   >
-                    Add Language
+                    + Add Skill
                   </button>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold mb-4">Hackathon Interests</h2>
-              <div className="space-y-2 mb-4">
-                {hackathonInterests.length === 0 ? (
-                  <p className="text-gray-500 italic">You haven't added any hackathon interests yet.</p>
-                ) : (
-              <div className="flex flex-wrap gap-2">
-                    {hackathonInterests.map((interest) => (
-                      <div 
-                        key={interest.id} 
-                        className="bg-indigo-50 text-indigo-800 px-3 py-2 rounded-md text-sm flex items-center group"
-                      >
-                        <span>{interest.interest}</span>
-                        <span className="mx-1">•</span>
-                        <span className="text-indigo-600">{interest.format_preference}</span>
-                        {interest.location_preference && (
-                          <>
-                            <span className="mx-1">•</span>
-                            <span className="text-indigo-600">{interest.location_preference}</span>
-                          </>
-                        )}
-                        <button
-                          onClick={() => removeHackathonInterest(interest.id as string)}
-                          className="ml-2 text-indigo-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={newInterest}
-                  onChange={(e) => setNewInterest(e.target.value)}
-                  placeholder="Add a hackathon interest (e.g., AI/ML, Web3, Climate Tech)"
-                  className="w-full border rounded-md px-3 py-2"
-                />
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <select
-                    value={newFormatPreference}
-                    onChange={(e) => setNewFormatPreference(e.target.value as 'online' | 'in_person' | 'hybrid')}
-                    className="flex-1 border rounded-md px-3 py-2"
-                  >
-                    <option value="online">Online</option>
-                    <option value="in_person">In Person</option>
-                    <option value="hybrid">Hybrid</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={newLocationPreference}
-                    onChange={(e) => setNewLocationPreference(e.target.value)}
-                    placeholder="Location preference (if applicable)"
-                    className="flex-1 border rounded-md px-3 py-2"
-                  />
-                  <button
-                    onClick={addHackathonInterest}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 whitespace-nowrap"
-                  >
-                    Add Interest
-                  </button>
+              {skills.length === 0 ? (
+                <p className="text-gray-500 italic">No skills added yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill) => (
+                    <div 
+                      key={skill.id} 
+                      className="bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm flex items-center"
+                    >
+                      <span>{skill.name}</span>
+                      <span className="mx-1">•</span>
+                      <span className="text-purple-300">{skill.proficiency_level}</span>
+                      {isEditing && (
+                        <button
+                          onClick={() => handleDeleteSkill(skill.id)}
+                          className="ml-2 text-gray-400 hover:text-red-400"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
-
+            
+            {/* Languages section */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">Hackathon Experience</h2>
-              <div className="space-y-4">
-                {/* This section could be enhanced to fetch and display hackathon participation */}
-                <p className="text-gray-500 italic">You haven't participated in any hackathons yet.</p>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-white">Languages</h2>
+                {isEditing && (
+                  <button
+                    onClick={() => setShowLanguageModal(true)}
+                    className="text-purple-400 hover:text-purple-300 text-sm"
+                  >
+                    + Add Language
+                  </button>
+                )}
               </div>
+              
+              {languages.length === 0 ? (
+                <p className="text-gray-500 italic">No languages added yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {languages.map((language) => (
+                    <div 
+                      key={language.id} 
+                      className="bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm flex items-center"
+                    >
+                      <span>{language.language}</span>
+                      <span className="mx-1">•</span>
+                      <span className="text-purple-300">{language.proficiency_level}</span>
+                      {isEditing && (
+                        <button
+                          onClick={() => handleDeleteLanguage(language.id)}
+                          className="ml-2 text-gray-400 hover:text-red-400"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+          
+          {/* Hackathon interests section */}
+          <div className="mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-purple-400" />
+                Hackathon Interests
+              </h2>
+              {isEditing && (
+                <button
+                  onClick={() => setShowInterestModal(true)}
+                  className="text-purple-400 hover:text-purple-300 text-sm"
+                >
+                  + Add Interest
+                </button>
+              )}
+            </div>
+            
+            {hackathonInterests.length === 0 ? (
+              <p className="text-gray-500 italic">No hackathon interests added yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {hackathonInterests.map((interest) => (
+                  <div 
+                    key={interest.id} 
+                    className="bg-purple-900 text-purple-100 px-3 py-2 rounded-md text-sm flex items-center"
+                  >
+                    <span>{interest.interest}</span>
+                    <span className="mx-1">•</span>
+                    <span className="text-purple-300">{interest.format_preference}</span>
+                    {interest.location_preference && (
+                      <>
+                        <span className="mx-1">•</span>
+                        <span className="text-purple-300">{interest.location_preference}</span>
+                      </>
+                    )}
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDeleteInterest(interest.id)}
+                        className="ml-2 text-purple-200 hover:text-red-300"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
