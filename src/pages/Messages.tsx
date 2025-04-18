@@ -53,22 +53,43 @@ export default function Messages() {
       fetchMessages();
       
       // Set up real-time subscription for new messages
-      const subscription = supabase
-        .channel('messages')
+      const channel = supabase
+        .channel(`messages-${connectionId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
           filter: `connection_id=eq.${connectionId}`
         }, (payload) => {
+          console.log('New message received:', payload);
+          
           // Add the new message to the list
           const newMsg = payload.new as Message;
-          setMessages(prevMessages => [...prevMessages, newMsg]);
+          
+          // Fetch the sender details if not included
+          if (!newMsg.sender) {
+            supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .eq('id', newMsg.sender_id)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  newMsg.sender = data;
+                  setMessages(prevMessages => [...prevMessages, newMsg]);
+                }
+              });
+          } else {
+            setMessages(prevMessages => [...prevMessages, newMsg]);
+          }
         })
         .subscribe();
       
+      console.log('Subscribed to channel:', `messages-${connectionId}`);
+      
       return () => {
-        supabase.removeChannel(subscription);
+        console.log('Unsubscribing from channel');
+        supabase.removeChannel(channel);
       };
     }
   }, [user, connectionId]);
@@ -200,6 +221,37 @@ export default function Messages() {
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  
+  const checkForNewMessages = async () => {
+    if (!connectionId || !user || messages.length === 0) return;
+    
+    // Get the timestamp of the latest message
+    const latestMessageTime = messages[messages.length - 1].created_at;
+    
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          connection_id,
+          sender_id,
+          content,
+          created_at,
+          sender:profiles!sender_id(id, full_name, avatar_url)
+        `)
+        .eq('connection_id', connectionId)
+        .gt('created_at', latestMessageTime)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setMessages(prevMessages => [...prevMessages, ...data]);
+      }
+    } catch (error) {
+      console.error('Error checking for new messages:', error);
+    }
   };
   
   if (loading) {
