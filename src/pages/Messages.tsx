@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,6 +39,7 @@ export default function Messages() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   
   useEffect(() => {
     if (connectionId && user) {
@@ -73,7 +74,15 @@ export default function Messages() {
       
       if (connectionError) {
         console.error('Error fetching connection:', connectionError);
-        toast.error('Failed to load conversation');
+        
+        if (connectionError.code === 'PGRST116') {
+          // Resource not found
+          toast.error('Conversation not found');
+          navigate('/connections');
+        } else {
+          toast.error('Failed to load conversation');
+        }
+        
         setLoading(false);
         return;
       }
@@ -128,14 +137,15 @@ export default function Messages() {
       }
       
       // Set up real-time subscription for new messages
-      const subscription = supabase
-        .channel('messages_channel')
+      const channel = supabase
+        .channel(`messages_${connectionId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
           filter: `connection_id=eq.${connectionId}`
         }, (payload) => {
+          console.log('New message received:', payload);
           const newMessage = payload.new as Message;
           setMessages(prev => [...prev, newMessage]);
           
@@ -144,10 +154,13 @@ export default function Messages() {
             markMessageAsRead(newMessage.id);
           }
         })
-        .subscribe();
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+        });
       
       return () => {
-        supabase.removeChannel(subscription);
+        console.log('Cleaning up subscription');
+        channel.unsubscribe();
       };
     } catch (error) {
       console.error('Error in fetchConnection:', error);

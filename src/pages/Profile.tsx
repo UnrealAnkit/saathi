@@ -504,7 +504,7 @@ export default function Profile() {
                 />
               </div>
               
-              <div>
+            <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Website URL
                 </label>
@@ -546,26 +546,26 @@ export default function Profile() {
                 onClick={() => setIsEditing(true)}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto"
               >
-                Edit Profile
-              </button>
-            </div>
+              Edit Profile
+            </button>
+          </div>
           )}
 
           <div className="flex space-x-4 mb-8">
             {profile?.github_url && (
               <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-                <Github className="h-5 w-5" />
-              </a>
+              <Github className="h-5 w-5" />
+            </a>
             )}
             {profile?.linkedin_url && (
               <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-                <Linkedin className="h-5 w-5" />
-              </a>
+              <Linkedin className="h-5 w-5" />
+            </a>
             )}
             {profile?.website_url && (
               <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
-                <Globe className="h-5 w-5" />
-              </a>
+              <Globe className="h-5 w-5" />
+            </a>
             )}
           </div>
 
@@ -592,21 +592,21 @@ export default function Profile() {
                   className="w-full border rounded-md px-3 py-2"
                 />
                 <div className="flex gap-2">
-                  <select
-                    value={newSkillLevel}
-                    onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
+                <select
+                  value={newSkillLevel}
+                  onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
                     className="flex-1 border rounded-md px-3 py-2"
-                  >
-                    {skillLevels.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={addSkill}
+                >
+                  {skillLevels.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={addSkill}
                     className="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 whitespace-nowrap"
-                  >
+                >
                     Add Skill
-                  </button>
+                </button>
                 </div>
               </div>
             </div>
@@ -658,7 +658,7 @@ export default function Profile() {
                 {hackathonInterests.length === 0 ? (
                   <p className="text-gray-500 italic">You haven't added any hackathon interests yet.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                     {hackathonInterests.map((interest) => (
                       <div 
                         key={interest.id} 
