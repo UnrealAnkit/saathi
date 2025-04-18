@@ -159,13 +159,13 @@ export default function Messages() {
             const senderId = data.sender_id || data.requester_id;
             const receiverId = data.receiver_id || data.recipient_id;
             
-            const { data: senderData, error: senderError } = await supabase
+            const { data: senderData } = await supabase
               .from('profiles')
               .select('id, full_name, avatar_url')
               .eq('id', senderId)
               .single();
             
-            const { data: receiverData, error: receiverError } = await supabase
+            const { data: receiverData } = await supabase
               .from('profiles')
               .select('id, full_name, avatar_url')
               .eq('id', receiverId)
@@ -215,14 +215,13 @@ export default function Messages() {
 
   const fetchMessages = async () => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('messages')
         .select(`
           id,
-          connection_id,
-          sender_id,
           content,
           created_at,
+          sender_id,
           sender:profiles!sender_id(full_name, avatar_url)
         `)
         .eq('connection_id', connectionId)

@@ -26,8 +26,19 @@ export async function setupDatabase() {
       return false;
     }
     
+    // Check if hackathons table exists
+    const { data: hackathonsExists, error: hackathonsError } = await supabase
+      .from('hackathons')
+      .select('id')
+      .limit(1);
+    
+    if (hackathonsError && hackathonsError.code !== 'PGRST116') {
+      console.error('Error checking hackathons table:', hackathonsError);
+      // Don't return false here, we'll try to create the table
+    }
+    
     // If tables don't exist, create them
-    if (!profilesExists || !connectionsExists) {
+    if (!profilesExists || !connectionsExists || !hackathonsExists) {
       console.log('Creating missing tables...');
       
       // Create profiles table if it doesn't exist
@@ -44,6 +55,15 @@ export async function setupDatabase() {
         const { error } = await supabase.rpc('create_connections_table');
         if (error) {
           console.error('Error creating connections table:', error);
+          return false;
+        }
+      }
+      
+      // Create hackathons table if it doesn't exist
+      if (!hackathonsExists) {
+        const { error } = await supabase.rpc('create_hackathons_table');
+        if (error) {
+          console.error('Error creating hackathons table:', error);
           return false;
         }
       }

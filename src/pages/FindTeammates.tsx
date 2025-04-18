@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UserProfile {
   id: string;
@@ -13,15 +14,15 @@ interface UserProfile {
   skills: { name: string; proficiency_level: string }[];
   languages: { language: string; proficiency_level: string }[];
   hackathon_interests: string[] | null;
-  connection_status?: 'none' | 'pending' | 'accepted' | 'rejected';
-  connection_id?: string;
+  connection_status: 'none' | 'pending' | 'accepted' | 'rejected' | undefined;
+  connection_id?: string | null;
 }
 
 // Define an interface for hackathon interests
 interface HackathonInterest {
   id: string;
   name: string;
-  // Add any other properties that might be in the hackathon_interests table
+  interest?: string;
 }
 
 export default function FindTeammates() {
@@ -109,23 +110,31 @@ export default function FindTeammates() {
             let hackathonInterests: HackathonInterest[] = [];
             try {
               const { data: interestsData } = await supabase
-                .from('hackathon_interests')
+                .from('profile_hackathon_interests')
                 .select('interest')
                 .eq('profile_id', profile.id);
                 
-              hackathonInterests = interestsData?.map(i => ({ id: i.interest, name: i.interest })) || [];
+              hackathonInterests = interestsData?.map(i => ({ 
+                id: i.interest, 
+                name: i.interest 
+              })) || [];
             } catch (error) {
               console.log('Hackathon interests table may not exist yet:', error);
             }
             
-            return {
-              ...profile,
+            const userData: UserProfile = {
+              id: profile.id,
+              full_name: profile.full_name || 'Anonymous User',
+              avatar_url: profile.avatar_url,
+              location: profile.location,
               skills: skillsData || [],
               languages: languagesData || [],
-              hackathon_interests: hackathonInterests.map(i => i.name),
+              hackathon_interests: hackathonInterests.map(i => i.name || i.id),
               connection_status: 'none',
               connection_id: null
             };
+            
+            return userData;
           })
       );
       
@@ -145,9 +154,21 @@ export default function FindTeammates() {
             );
             
             if (connection) {
+              let status: 'none' | 'pending' | 'accepted' | 'rejected';
+              
+              if (connection.status === 'pending') {
+                status = 'pending';
+              } else if (connection.status === 'accepted') {
+                status = 'accepted';
+              } else if (connection.status === 'rejected') {
+                status = 'rejected';
+              } else {
+                status = 'none';
+              }
+              
               return {
                 ...profile,
-                connection_status: connection.status,
+                connection_status: status,
                 connection_id: connection.id
               };
             }

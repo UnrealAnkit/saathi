@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import GlassCard from '../components/GlassCard';
 import GradientButton from '../components/GradientButton';
-import { supabase } from '../lib/supabase';
 
 export default function Auth() {
   const [email, setEmail] = useState('');

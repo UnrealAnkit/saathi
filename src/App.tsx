@@ -12,6 +12,7 @@ import Connections from './pages/Connections';
 import HackathonDetail from './pages/HackathonDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { setupDatabase } from './lib/setupDatabase';
+import { supabase } from './lib/supabase';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,6 +34,63 @@ function App() {
           console.error('Database setup failed');
         }
       });
+  }, []);
+
+  useEffect(() => {
+    const createHackathonsTable = async () => {
+      try {
+        const { error } = await supabase.rpc('execute_sql', {
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.hackathons (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              name TEXT NOT NULL,
+              description TEXT,
+              start_date TIMESTAMP WITH TIME ZONE,
+              end_date TIMESTAMP WITH TIME ZONE,
+              location TEXT,
+              format TEXT CHECK (format IN ('online', 'in_person', 'hybrid')),
+              website TEXT,
+              image_url TEXT,
+              created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            ALTER TABLE public.hackathons ENABLE ROW LEVEL SECURITY;
+            
+            CREATE POLICY IF NOT EXISTS "Users can view all hackathons"
+              ON public.hackathons
+              FOR SELECT
+              TO authenticated
+              USING (true);
+            
+            CREATE POLICY IF NOT EXISTS "Users can create hackathons"
+              ON public.hackathons
+              FOR INSERT
+              TO authenticated
+              WITH CHECK (auth.uid() = created_by);
+            
+            CREATE POLICY IF NOT EXISTS "Users can update their own hackathons"
+              ON public.hackathons
+              FOR UPDATE
+              USING (auth.uid() = created_by);
+            
+            CREATE POLICY IF NOT EXISTS "Users can delete their own hackathons"
+              ON public.hackathons
+              FOR DELETE
+              USING (auth.uid() = created_by);
+          `
+        });
+        
+        if (error) {
+          console.error('Error creating hackathons table:', error);
+        }
+      } catch (error) {
+        console.error('Error creating hackathons table:', error);
+      }
+    };
+    
+    createHackathonsTable();
   }, []);
 
   return (

@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { MessageSquare, UserX, UserCheck } from 'lucide-react';
 
 interface Connection {
   id: string;
