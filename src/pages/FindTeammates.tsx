@@ -42,6 +42,11 @@ export default function FindTeammates() {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
       // Fetch all profiles
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -49,73 +54,84 @@ export default function FindTeammates() {
         
       if (profilesError) throw profilesError;
       
-      // Fetch connections for the current user
-      let connections = [];
-      if (user) {
-        const { data: connectionsData } = await supabase
-          .from('connections')
-          .select('*')
-          .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
-          
-        connections = connectionsData || [];
-      }
-      
-      // For each profile, fetch their skills, languages, and determine connection status
+      // For each profile, fetch their skills, languages, and hackathon interests
       const profilesWithDetails = await Promise.all(
-        profilesData.map(async (profile) => {
-          // Skip the current user's profile
-          if (user && profile.id === user.id) return null;
-          
-          // Fetch skills
-          const { data: skillsData } = await supabase
-            .from('skills')
-            .select('name, proficiency_level')
-            .eq('profile_id', profile.id);
+        profilesData
+          .filter(profile => profile.id !== user.id) // Skip current user
+          .map(async (profile) => {
+            // Fetch skills
+            const { data: skillsData } = await supabase
+              .from('skills')
+              .select('name, proficiency_level')
+              .eq('profile_id', profile.id);
+              
+            // Fetch languages
+            const { data: languagesData } = await supabase
+              .from('languages')
+              .select('language, proficiency_level')
+              .eq('profile_id', profile.id);
+              
+            // Fetch hackathon interests - wrap in try/catch to handle missing table
+            let hackathonInterests = [];
+            try {
+              const { data: interestsData } = await supabase
+                .from('hackathon_interests')
+                .select('interest')
+                .eq('profile_id', profile.id);
+                
+              hackathonInterests = interestsData?.map(i => i.interest) || [];
+            } catch (error) {
+              console.log('Hackathon interests table may not exist yet:', error);
+            }
             
-          // Fetch languages
-          const { data: languagesData } = await supabase
-            .from('languages')
-            .select('language, proficiency_level')
-            .eq('profile_id', profile.id);
-            
-          // Fetch hackathon interests
-          const { data: interestsData } = await supabase
-            .from('hackathon_interests')
-            .select('interest, format_preference, location_preference')
-            .eq('profile_id', profile.id);
-          
-          // Determine connection status
-          let connection_status = 'none';
-          let connection_id = null;
-          
-          if (user) {
+            return {
+              ...profile,
+              skills: skillsData || [],
+              languages: languagesData || [],
+              hackathon_interests: hackathonInterests,
+              connection_status: 'none',
+              connection_id: null
+            };
+          })
+      );
+      
+      // Now fetch connections separately
+      try {
+        const { data: connections } = await supabase
+          .from('connections')
+          .select('id, requester_id, recipient_id, status')
+          .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
+        
+        if (connections && connections.length > 0) {
+          // Update connection status for each profile
+          const updatedProfiles = profilesWithDetails.map(profile => {
             const connection = connections.find(c => 
               (c.requester_id === user.id && c.recipient_id === profile.id) || 
               (c.requester_id === profile.id && c.recipient_id === user.id)
             );
             
             if (connection) {
-              connection_status = connection.status;
-              connection_id = connection.id;
+              return {
+                ...profile,
+                connection_status: connection.status,
+                connection_id: connection.id
+              };
             }
-          }
+            
+            return profile;
+          });
           
-          return {
-            ...profile,
-            skills: skillsData || [],
-            languages: languagesData || [],
-            hackathon_interests: interestsData?.map(i => i.interest) || [],
-            connection_status,
-            connection_id
-          };
-        })
-      );
-      
-      // Filter out null values (current user's profile)
-      const filteredProfiles = profilesWithDetails.filter(Boolean);
-      
-      setProfiles(filteredProfiles);
-      setFilteredProfiles(filteredProfiles);
+          setProfiles(updatedProfiles);
+          setFilteredProfiles(updatedProfiles);
+        } else {
+          setProfiles(profilesWithDetails);
+          setFilteredProfiles(profilesWithDetails);
+        }
+      } catch (error) {
+        console.error('Error fetching connections:', error);
+        setProfiles(profilesWithDetails);
+        setFilteredProfiles(profilesWithDetails);
+      }
     } catch (error) {
       console.error('Error fetching profiles:', error);
       toast.error('Failed to load profiles');
@@ -155,7 +171,6 @@ export default function FindTeammates() {
     // Apply format filter
     if (formatFilter !== 'all') {
       if (formatFilter === 'online') {
-        // This is a simplification - you might want to add a "preferred_format" field to profiles
         filtered = filtered.filter(profile => 
           !profile.location || profile.location.toLowerCase().includes('remote')
         );
@@ -186,22 +201,18 @@ export default function FindTeammates() {
         return;
       }
       
-      console.log('Sending connection request from', user.id, 'to', profileId);
-      
-      // Create the connection directly without checking first
-      const { data, error } = await supabase
+      // Simple insert without any complex logic
+      const { error } = await supabase
         .from('connections')
         .insert({
           requester_id: user.id,
           recipient_id: profileId,
           status: 'pending'
-        })
-        .select();
+        });
         
       if (error) {
         console.error('Error creating connection:', error);
         
-        // If it's a unique violation, it means the connection already exists
         if (error.code === '23505') {
           toast.error('A connection with this user already exists');
         } else {
@@ -210,24 +221,10 @@ export default function FindTeammates() {
         return;
       }
       
-      // Update the local state
-      setProfiles(prev => 
-        prev.map(profile => 
-          profile.id === profileId 
-            ? { ...profile, connection_status: 'pending', connection_id: data[0].id } 
-            : profile
-        )
-      );
-      
-      setFilteredProfiles(prev => 
-        prev.map(profile => 
-          profile.id === profileId 
-            ? { ...profile, connection_status: 'pending', connection_id: data[0].id } 
-            : profile
-        )
-      );
-      
       toast.success('Connection request sent');
+      
+      // Refresh profiles to get updated connection status
+      fetchProfiles();
     } catch (error) {
       console.error('Error sending connection request:', error);
       toast.error('Failed to send connection request');
@@ -248,27 +245,14 @@ export default function FindTeammates() {
         
       if (error) {
         console.error(`Error updating connection status:`, error);
-        throw error;
+        toast.error(`Failed to ${status} connection`);
+        return;
       }
       
-      // Update the local state
-      setProfiles(prev => 
-        prev.map(profile => 
-          profile.id === profileId 
-            ? { ...profile, connection_status: status } 
-            : profile
-        )
-      );
-      
-      setFilteredProfiles(prev => 
-        prev.map(profile => 
-          profile.id === profileId 
-            ? { ...profile, connection_status: status } 
-            : profile
-        )
-      );
-      
       toast.success(`Connection ${status}`);
+      
+      // Refresh profiles to get updated connection status
+      fetchProfiles();
     } catch (error) {
       console.error(`Error ${status} connection:`, error);
       toast.error(`Failed to ${status} connection`);

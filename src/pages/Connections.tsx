@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, UserCheck, UserX, Clock } from 'lucide-react';
+import { MessageCircle, UserPlus, Check, X, Clock, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -10,48 +10,45 @@ interface Connection {
   requester_id: string;
   recipient_id: string;
   status: string;
+  created_at: string;
   updated_at: string;
-  other_user: {
+  requester?: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
-  unread_count: number;
+  recipient?: {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+  unread_count?: number;
+  last_message?: {
+    content: string;
+    created_at: string;
+    sender_id: string;
+  };
 }
 
 export default function Connections() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'accepted'>('all');
   
   useEffect(() => {
     if (user) {
       fetchConnections();
-      
-      // Set up real-time subscription for new messages
-      const subscription = supabase
-        .channel('new_messages')
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'messages'
-        }, () => {
-          // Refresh connections to update unread counts
-          fetchConnections();
-        })
-        .subscribe();
-        
-      return () => {
-        supabase.removeChannel(subscription);
-      };
     }
   }, [user]);
   
   const fetchConnections = async () => {
+    if (!user) return;
+    
     setLoading(true);
+    
     try {
-      // Fetch connections where the user is either requester or recipient
+      // Fetch all connections where the current user is either the requester or recipient
       const { data, error } = await supabase
         .from('connections')
         .select(`
@@ -59,48 +56,22 @@ export default function Connections() {
           requester_id,
           recipient_id,
           status,
+          created_at,
           updated_at,
-          profiles!connections_requester_id_fkey (id, full_name, avatar_url),
-          profiles!connections_recipient_id_fkey (id, full_name, avatar_url)
+          requester:profiles!requester_id(id, full_name, avatar_url),
+          recipient:profiles!recipient_id(id, full_name, avatar_url)
         `)
-        .or(`requester_id.eq.${user?.id},recipient_id.eq.${user?.id}`)
+        .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
         .order('updated_at', { ascending: false });
-        
-      if (error) throw error;
       
-      // Process the connections to determine the other user
-      const processedConnections = await Promise.all(data.map(async (conn) => {
-        const otherUserId = conn.requester_id === user?.id ? conn.recipient_id : conn.requester_id;
-        const otherUserProfile = conn.requester_id === user?.id 
-          ? conn.profiles.connections_recipient_id_fkey 
-          : conn.profiles.connections_requester_id_fkey;
-          
-        // Count unread messages
-        const { count, error: countError } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('connection_id', conn.id)
-          .eq('sender_id', otherUserId)
-          .eq('read', false);
-          
-        if (countError) throw countError;
-        
-        return {
-          id: conn.id,
-          requester_id: conn.requester_id,
-          recipient_id: conn.recipient_id,
-          status: conn.status,
-          updated_at: conn.updated_at,
-          other_user: {
-            id: otherUserId,
-            full_name: otherUserProfile.full_name,
-            avatar_url: otherUserProfile.avatar_url
-          },
-          unread_count: count || 0
-        };
-      }));
+      if (error) {
+        console.error('Error fetching connections:', error);
+        toast.error('Failed to load connections');
+        setLoading(false);
+        return;
+      }
       
-      setConnections(processedConnections);
+      setConnections(data || []);
     } catch (error) {
       console.error('Error fetching connections:', error);
       toast.error('Failed to load connections');
@@ -115,158 +86,213 @@ export default function Connections() {
         .from('connections')
         .update({ status })
         .eq('id', connectionId);
-        
-      if (error) throw error;
       
-      // Update the local state
-      setConnections(prev => 
-        prev.map(conn => 
-          conn.id === connectionId 
-            ? { ...conn, status } 
-            : conn
-        )
-      );
+      if (error) {
+        console.error(`Error updating connection status:`, error);
+        toast.error(`Failed to ${status} connection`);
+        return;
+      }
       
       toast.success(`Connection ${status}`);
+      
+      // Update local state
+      setConnections(prev => 
+        prev.map(conn => 
+          conn.id === connectionId ? { ...conn, status } : conn
+        )
+      );
     } catch (error) {
       console.error(`Error ${status} connection:`, error);
       toast.error(`Failed to ${status} connection`);
     }
   };
   
-  const filteredConnections = activeTab === 'all'
-    ? connections
-    : connections.filter(conn => conn.status === 'pending');
+  const getFilteredConnections = () => {
+    if (activeTab === 'all') {
+      return connections;
+    } else {
+      return connections.filter(conn => conn.status === activeTab);
+    }
+  };
   
-  if (loading) {
-    return <div className="flex justify-center p-8">Loading connections...</div>;
+  const getOtherUser = (connection: Connection) => {
+    return connection.requester_id === user?.id ? connection.recipient : connection.requester;
+  };
+  
+  if (loading && connections.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
   }
   
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold mb-6">Your Connections</h1>
-          
-          <div className="flex border-b mb-6">
-            <button
-              className={`px-4 py-2 font-medium ${
-                activeTab === 'all'
-                  ? 'border-b-2 border-indigo-600 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab('all')}
-            >
-              All Connections
-            </button>
-            <button
-              className={`px-4 py-2 font-medium ${
-                activeTab === 'pending'
-                  ? 'border-b-2 border-indigo-600 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setActiveTab('pending')}
-            >
-              Pending Requests
-              {connections.filter(c => c.status === 'pending').length > 0 && (
-                <span className="ml-2 bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                  {connections.filter(c => c.status === 'pending').length}
-                </span>
-              )}
-            </button>
-          </div>
-          
-          {filteredConnections.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">
-                {activeTab === 'all'
-                  ? "You don't have any connections yet."
-                  : "You don't have any pending connection requests."}
-              </p>
-              <Link
-                to="/find-teammates"
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-              >
-                Find Teammates
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredConnections.map(connection => (
-                <div
-                  key={connection.id}
-                  className="border rounded-lg p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center">
-                    <img
-                      src={connection.other_user.avatar_url || 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=120&h=120&fit=crop'}
-                      alt={connection.other_user.full_name}
-                      className="w-12 h-12 rounded-full object-cover mr-4"
-                    />
-                    <div>
-                      <h3 className="font-semibold">{connection.other_user.full_name}</h3>
-                      <div className="flex items-center text-sm text-gray-500">
-                        {connection.status === 'accepted' ? (
-                          <>
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            <span>Connected</span>
-                          </>
-                        ) : connection.status === 'rejected' ? (
-                          <>
-                            <UserX className="h-4 w-4 mr-1" />
-                            <span>Rejected</span>
-                          </>
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Connections</h1>
+        <p className="text-gray-600">
+          Manage your connections and messages with other hackathon teammates.
+        </p>
+      </div>
+      
+      <div className="mb-6">
+        <div className="flex border-b">
+          <button
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'all'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => setActiveTab('all')}
+          >
+            All
+          </button>
+          <button
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'pending'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => setActiveTab('pending')}
+          >
+            Pending
+          </button>
+          <button
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'accepted'
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => setActiveTab('accepted')}
+          >
+            Connected
+          </button>
+        </div>
+      </div>
+      
+      {getFilteredConnections().length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <User className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No connections found</h3>
+          <p className="text-gray-500 mb-6">
+            {activeTab === 'all'
+              ? "You don't have any connections yet."
+              : activeTab === 'pending'
+              ? "You don't have any pending connection requests."
+              : "You don't have any accepted connections."}
+          </p>
+          <Link
+            to="/find-teammates"
+            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            <UserPlus className="h-5 w-5 mr-2" />
+            Find Teammates
+          </Link>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <ul className="divide-y divide-gray-200">
+            {getFilteredConnections().map((connection) => {
+              const otherUser = getOtherUser(connection);
+              const isPending = connection.status === 'pending';
+              const isRequester = connection.requester_id === user?.id;
+              const pendingIncoming = isPending && !isRequester;
+              
+              return (
+                <li key={connection.id} className="hover:bg-gray-50">
+                  {isPending ? (
+                    <div className="px-6 py-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
+                            {otherUser?.avatar_url ? (
+                              <img
+                                src={otherUser.avatar_url}
+                                alt={otherUser?.full_name}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-indigo-600 font-medium text-lg">
+                                {otherUser?.full_name.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {otherUser?.full_name}
+                            </h3>
+                            <div className="flex items-center text-sm text-gray-500">
+                              <Clock className="h-4 w-4 mr-1" />
+                              <span>
+                                {pendingIncoming
+                                  ? 'Wants to connect with you'
+                                  : 'Connection request sent'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {pendingIncoming ? (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => updateConnectionStatus(connection.id, 'accepted')}
+                              className="flex items-center justify-center bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700"
+                              title="Accept"
+                            >
+                              <Check className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => updateConnectionStatus(connection.id, 'rejected')}
+                              className="flex items-center justify-center bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700"
+                              title="Reject"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <Clock className="h-4 w-4 mr-1" />
-                            <span>
-                              {connection.requester_id === user?.id
-                                ? 'Request Sent'
-                                : 'Request Received'}
-                            </span>
-                          </>
+                          <span className="text-sm text-gray-500">
+                            {new Date(connection.created_at).toLocaleDateString()}
+                          </span>
                         )}
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {connection.status === 'accepted' ? (
-                      <Link
-                        to={`/messages/${connection.id}`}
-                        className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                      >
-                        <MessageCircle className="h-5 w-5 mr-2" />
-                        Message
-                        {connection.unread_count > 0 && (
-                          <span className="ml-2 bg-white text-indigo-600 text-xs font-semibold px-2 py-0.5 rounded-full">
-                            {connection.unread_count}
-                          </span>
-                        )}
-                      </Link>
-                    ) : connection.status === 'pending' && connection.recipient_id === user?.id ? (
-                      <>
-                        <button
-                          onClick={() => updateConnectionStatus(connection.id, 'accepted')}
-                          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => updateConnectionStatus(connection.id, 'rejected')}
-                          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  ) : (
+                    <Link to={`/messages/${connection.id}`} className="block px-6 py-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
+                            {otherUser?.avatar_url ? (
+                              <img
+                                src={otherUser.avatar_url}
+                                alt={otherUser?.full_name}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-indigo-600 font-medium text-lg">
+                                {otherUser?.full_name.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {otherUser?.full_name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              Click to view conversation
+                            </p>
+                          </div>
+                        </div>
+                        <MessageCircle className="h-5 w-5 text-indigo-600" />
+                      </div>
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
-      </div>
+      )}
     </div>
   );
 }

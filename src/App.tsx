@@ -23,17 +23,17 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  useEffect(() => {
-    // Set up database tables when the app initializes
-    setupDatabase()
-      .then(success => {
-        if (success) {
-          console.log('Database setup completed successfully');
-        } else {
-          console.error('Database setup failed');
-        }
-      });
-  }, []);
+  // Comment out or remove the setupDatabase call
+  // useEffect(() => {
+  //   setupDatabase()
+  //     .then(success => {
+  //       if (success) {
+  //         console.log('Database setup completed successfully');
+  //       } else {
+  //         console.error('Database setup failed');
+  //       }
+  //     });
+  // }, []);
 
   return (
     <Router>
