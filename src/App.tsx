@@ -9,6 +9,7 @@ import Hackathons from './pages/Hackathons';
 import FindTeammates from './pages/FindTeammates';
 import Messages from './pages/Messages';
 import Connections from './pages/Connections';
+import HackathonDetail from './pages/HackathonDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { setupDatabase } from './lib/setupDatabase';
 
@@ -70,6 +71,7 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route path="/hackathons/:hackathonId" element={<HackathonDetail />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

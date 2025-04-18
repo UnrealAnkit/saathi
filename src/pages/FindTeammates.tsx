@@ -27,6 +27,9 @@ export default function FindTeammates() {
   const [skillFilter, setSkillFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [formatFilter, setFormatFilter] = useState('all'); // 'all', 'online', 'in_person'
+  const [languageFilter, setLanguageFilter] = useState('');
+  const [experienceFilter, setExperienceFilter] = useState('all'); // 'all', 'beginner', 'intermediate', 'expert'
+  const [hackathonInterestFilter, setHackathonInterestFilter] = useState('');
   
   useEffect(() => {
     fetchProfiles();
@@ -157,6 +160,29 @@ export default function FindTeammates() {
       const skill = skillFilter.toLowerCase();
       filtered = filtered.filter(profile => 
         profile.skills.some(s => s.name.toLowerCase().includes(skill))
+      );
+    }
+    
+    // Apply language filter
+    if (languageFilter) {
+      const language = languageFilter.toLowerCase();
+      filtered = filtered.filter(profile => 
+        profile.languages.some(l => l.language.toLowerCase().includes(language))
+      );
+    }
+    
+    // Apply experience filter
+    if (experienceFilter !== 'all') {
+      filtered = filtered.filter(profile => 
+        profile.skills.some(s => s.proficiency_level.toLowerCase() === experienceFilter)
+      );
+    }
+    
+    // Apply hackathon interest filter
+    if (hackathonInterestFilter) {
+      const interest = hackathonInterestFilter.toLowerCase();
+      filtered = filtered.filter(profile => 
+        profile.hackathon_interests?.some(i => i.toLowerCase().includes(interest))
       );
     }
     
