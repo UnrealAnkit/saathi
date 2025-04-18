@@ -6,6 +6,10 @@ import { Calendar, Users, MapPin, Clock, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import CreateHackathonModal from '../components/CreateHackathonModal';
 import BackgroundEffect from '../components/BackgroundEffect';
+import GlassCard from '../components/GlassCard';
+import GradientButton from '../components/GradientButton';
+import NeonText from '../components/NeonText';
+import CyberCard from '../components/CyberCard';
 
 interface Hackathon {
   id: string;
@@ -89,14 +93,14 @@ export default function Home() {
       <BackgroundEffect />
       {/* Hero Section with Animation */}
       <motion.div 
-        className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-8 mb-12 text-white shadow-lg overflow-hidden relative"
+        className="relative bg-gray-900 rounded-xl p-8 mb-12 text-white shadow-lg overflow-hidden"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
       >
         {/* Background animation */}
         <motion.div 
-          className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full"
+          className="absolute top-0 right-0 w-96 h-96 bg-purple-500 opacity-10 rounded-full"
           animate={{ 
             x: [0, 10, 0], 
             y: [0, 15, 0],
@@ -111,50 +115,54 @@ export default function Home() {
         />
         
         <div className="max-w-3xl relative z-10">
-          <motion.h1 
-            className="text-4xl font-bold mb-4"
+          <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            Find Your Perfect Hackathon Teammates
-          </motion.h1>
+            <NeonText color="purple" size="3xl" glow animate>
+              Find Your Perfect Hackathon Teammates
+            </NeonText>
+          </motion.div>
+          
           <motion.p 
-            className="text-xl mb-6"
+            className="text-xl mb-6 text-gray-300"
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            Connect with developers, designers, and innovators who share your passion for building amazing projects.
+            Connect with skilled developers, designers, and innovators to build amazing projects together.
           </motion.p>
+          
           <motion.div 
             className="flex flex-wrap gap-4"
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <Link 
-              to="/find-teammates" 
-              className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors transform hover:scale-105 transition duration-200"
-            >
-              Find Teammates
-            </Link>
             {user ? (
-              <motion.button
-                onClick={() => setShowModal(true)}
-                className="bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-400 transition-colors transform hover:scale-105 transition duration-200"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Add Hackathon
-              </motion.button>
+              <>
+                <GradientButton 
+                  to="/find-teammates" 
+                  size="lg"
+                >
+                  Find Teammates
+                </GradientButton>
+                <GradientButton 
+                  variant="blue" 
+                  onClick={() => setShowModal(true)} 
+                  size="lg"
+                >
+                  Create Hackathon
+                </GradientButton>
+              </>
             ) : (
-              <Link 
+              <GradientButton 
                 to="/auth" 
-                className="bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-400 transition-colors transform hover:scale-105 transition duration-200"
+                size="lg"
               >
-                Sign Up / Login
-              </Link>
+                Get Started
+              </GradientButton>
             )}
           </motion.div>
         </div>
@@ -208,56 +216,59 @@ export default function Home() {
             initial="hidden"
             animate="visible"
           >
-            {upcomingHackathons.map((hackathon, index) => (
+            {upcomingHackathons.map((hackathon) => (
               <motion.div 
                 key={hackathon.id} 
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                 variants={itemVariants}
                 whileHover={{ y: -5 }}
               >
-                <div 
-                  className="h-48 bg-cover bg-center" 
-                  style={{ 
-                    backgroundImage: hackathon.image_url 
-                      ? `url(${hackathon.image_url})` 
-                      : 'url(https://images.unsplash.com/photo-1504384308090-c894fdcc538d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1050&q=80)'
-                  }}
-                ></div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold mb-2 text-gray-900">{hackathon.name}</h3>
-                  <p className="text-gray-600 mb-4 line-clamp-2">{hackathon.description}</p>
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-gray-700">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>{formatDate(hackathon.start_date)} - {formatDate(hackathon.end_date)}</span>
+                <CyberCard glitch>
+                  <div 
+                    className="h-48 bg-cover bg-center rounded-t-md" 
+                    style={{ 
+                      backgroundImage: hackathon.image_url 
+                        ? `url(${hackathon.image_url})` 
+                        : 'url(https://images.unsplash.com/photo-1504384308090-c894fdcc538d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1050&q=80)'
+                    }}
+                  ></div>
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold mb-2 text-white">{hackathon.name}</h3>
+                    <p className="text-gray-400 mb-4 line-clamp-2">{hackathon.description}</p>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center text-gray-300">
+                        <Calendar className="h-4 w-4 mr-2 text-purple-400" />
+                        <span>{formatDate(hackathon.start_date)} - {formatDate(hackathon.end_date)}</span>
+                      </div>
+                      <div className="flex items-center text-gray-300">
+                        <MapPin className="h-4 w-4 mr-2 text-purple-400" />
+                        <span>{hackathon.format === 'online' ? 'Online' : hackathon.location}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center text-gray-700">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span>{hackathon.format === 'online' ? 'Online' : hackathon.location}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <Link
-                      to={`/hackathons/${hackathon.id}`}
-                      className="text-indigo-600 hover:text-indigo-800"
-                    >
-                      View Details
-                    </Link>
-                    {hackathon.website_url && (
-                      <motion.a 
-                        href={hackathon.website_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-500 hover:text-gray-700"
-                        whileHover={{ rotate: 15 }}
+                    
+                    <div className="flex justify-between items-center">
+                      <GradientButton
+                        to={`/hackathons/${hackathon.id}`}
+                        size="sm"
+                        variant="purple"
                       >
-                        <ExternalLink className="h-5 w-5" />
-                      </motion.a>
-                    )}
+                        View Details
+                      </GradientButton>
+                      
+                      {hackathon.website_url && (
+                        <motion.a 
+                          href={hackathon.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-purple-400 transition-colors"
+                          whileHover={{ rotate: 15 }}
+                        >
+                          <ExternalLink className="h-5 w-5" />
+                        </motion.a>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </CyberCard>
               </motion.div>
             ))}
           </motion.div>
