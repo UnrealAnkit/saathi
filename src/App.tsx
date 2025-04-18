@@ -39,7 +39,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-900 text-white">
           <Navbar />
           <main className="container mx-auto px-4 py-8">
             <Routes>
@@ -75,7 +75,15 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#1F2937',
+                color: '#fff',
+              },
+            }} 
+          />
         </div>
       </AuthProvider>
     </Router>

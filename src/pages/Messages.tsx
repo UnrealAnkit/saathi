@@ -4,26 +4,30 @@ import { Send, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 interface Message {
   id: string;
+  connection_id: string;
   sender_id: string;
   content: string;
   created_at: string;
-  read: boolean;
+  sender?: {
+    full_name: string;
+    avatar_url: string | null;
+  };
 }
 
 interface Connection {
   id: string;
-  requester_id: string;
-  recipient_id: string;
   status: string;
-  requester: {
+  created_at: string;
+  user1: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
-  recipient: {
+  user2: {
     id: string;
     full_name: string;
     avatar_url: string | null;
@@ -63,11 +67,10 @@ export default function Messages() {
         .from('connections')
         .select(`
           id,
-          requester_id,
-          recipient_id,
           status,
-          requester:profiles!requester_id(id, full_name, avatar_url),
-          recipient:profiles!recipient_id(id, full_name, avatar_url)
+          created_at,
+          user1:profiles!connections_user1_id_fkey(id, full_name, avatar_url),
+          user2:profiles!connections_user2_id_fkey(id, full_name, avatar_url)
         `)
         .eq('id', connectionId)
         .single();
@@ -94,7 +97,7 @@ export default function Messages() {
       }
       
       // Check if the current user is part of this connection
-      if (connectionData.requester_id !== user.id && connectionData.recipient_id !== user.id) {
+      if (connectionData.user1.id !== user.id && connectionData.user2.id !== user.id) {
         toast.error('You do not have permission to view this conversation');
         setLoading(false);
         return;
@@ -111,7 +114,14 @@ export default function Messages() {
       // Now fetch messages
       const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
-        .select('id, sender_id, content, created_at, read')
+        .select(`
+          id,
+          connection_id,
+          sender_id,
+          content,
+          created_at,
+          sender:profiles(full_name, avatar_url)
+        `)
         .eq('connection_id', connectionId)
         .order('created_at', { ascending: true });
       
@@ -138,7 +148,7 @@ export default function Messages() {
       
       // Set up real-time subscription for new messages
       const channel = supabase
-        .channel(`messages_${connectionId}`)
+        .channel(`messages:connection_id=eq.${connectionId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -160,7 +170,7 @@ export default function Messages() {
       
       return () => {
         console.log('Cleaning up subscription');
-        channel.unsubscribe();
+        supabase.removeChannel(channel);
       };
     } catch (error) {
       console.error('Error in fetchConnection:', error);
@@ -232,13 +242,17 @@ export default function Messages() {
   
   // Get the other user in the connection
   const otherUser = connection ? 
-    (connection.requester_id === user?.id ? connection.recipient : connection.requester) : 
+    (connection.user1.id === user?.id ? connection.user2 : connection.user1) : 
     null;
   
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        <motion.div 
+          className="rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        />
       </div>
     );
   }
@@ -268,7 +282,7 @@ export default function Messages() {
         <h2 className="text-2xl font-bold mb-4">Connection Not Accepted</h2>
         <p className="text-gray-600 mb-6">
           You can only message connections that have been accepted.
-          {connection.requester_id === user?.id 
+          {connection.user1.id === user?.id 
             ? " The recipient hasn't accepted your connection request yet."
             : " Please accept the connection request to start messaging."}
         </p>
@@ -284,91 +298,97 @@ export default function Messages() {
   }
   
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="mb-6 flex items-center">
-        <Link
-          to="/connections"
-          className="mr-4 p-2 rounded-full hover:bg-gray-100"
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="bg-gray-800 p-4 rounded-t-lg shadow-md flex items-center">
+        <motion.button 
+          onClick={() => navigate('/connections')}
+          className="mr-4 text-gray-300 hover:text-white"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
         >
           <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
-            {otherUser.avatar_url ? (
-              <img
-                src={otherUser.avatar_url}
-                alt={otherUser.full_name}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-            ) : (
-              <span className="text-indigo-600 font-medium">
-                {otherUser.full_name.charAt(0)}
-              </span>
-            )}
+        </motion.button>
+        
+        {otherUser && (
+          <div className="flex items-center">
+            <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center text-white mr-3">
+              {otherUser.avatar_url ? (
+                <img 
+                  src={otherUser.avatar_url} 
+                  alt={otherUser.full_name} 
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                otherUser.full_name.charAt(0).toUpperCase()
+              )}
+            </div>
+            <div>
+              <h2 className="font-semibold text-white">{otherUser.full_name}</h2>
+              <p className="text-xs text-gray-400">
+                {connection?.status === 'accepted' ? 'Connected' : 'Pending'}
+              </p>
+            </div>
           </div>
-          <h2 className="text-xl font-semibold">{otherUser.full_name}</h2>
-        </div>
+        )}
       </div>
       
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="h-96 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
+      {/* Messages */}
+      <div className="bg-gray-900 p-4 h-[60vh] overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-gray-400 text-center">
               No messages yet. Start the conversation!
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <motion.div
                 key={message.id}
-                className={`flex ${
-                  message.sender_id === user?.id ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
               >
-                <div
-                  className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg ${
-                    message.sender_id === user?.id
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-800'
+                <div 
+                  className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                    message.sender_id === user?.id 
+                      ? 'bg-purple-600 text-white' 
+                      : 'bg-gray-800 text-white'
                   }`}
                 >
                   <p>{message.content}</p>
-                  <p
-                    className={`text-xs mt-1 ${
-                      message.sender_id === user?.id ? 'text-indigo-200' : 'text-gray-500'
-                    }`}
-                  >
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                  <p className="text-xs opacity-70 mt-1">
+                    {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-        
-        <form onSubmit={sendMessage} className="p-4 border-t">
-          <div className="flex">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 border rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={sending}
-            />
-            <button
-              type="submit"
-              className="bg-indigo-600 text-white px-4 py-2 rounded-r-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-              disabled={!newMessage.trim() || sending}
-            >
-              <Send className="h-5 w-5" />
-            </button>
+              </motion.div>
+            ))}
+            <div ref={messagesEndRef} />
           </div>
-        </form>
+        )}
       </div>
+      
+      {/* Message Input */}
+      <form onSubmit={sendMessage} className="bg-gray-800 p-4 rounded-b-lg shadow-md flex">
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type a message..."
+          className="flex-1 bg-gray-700 text-white border border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
+        <motion.button
+          type="submit"
+          className="bg-purple-600 text-white px-4 py-2 rounded-r-lg"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          disabled={!newMessage.trim()}
+        >
+          <Send className="h-5 w-5" />
+        </motion.button>
+      </form>
     </div>
   );
 } 

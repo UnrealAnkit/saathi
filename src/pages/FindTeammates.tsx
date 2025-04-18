@@ -3,6 +3,7 @@ import { Search, Filter, MapPin, Code, Calendar, UserPlus, MessageCircle, Check,
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserProfile {
   id: string;
@@ -31,6 +32,29 @@ export default function FindTeammates() {
   const [experienceFilter, setExperienceFilter] = useState('all'); // 'all', 'beginner', 'intermediate', 'expert'
   const [hackathonInterestFilter, setHackathonInterestFilter] = useState('');
   
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
+    }
+  };
+
   useEffect(() => {
     fetchProfiles();
   }, []);
@@ -287,95 +311,164 @@ export default function FindTeammates() {
   
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-8">
+      <motion.div 
+        className="mb-8"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <h1 className="text-3xl font-bold mb-2">Find Teammates</h1>
         <p className="text-gray-600">
           Search for potential teammates based on skills, location, and hackathon interests.
         </p>
-      </div>
+      </motion.div>
       
-      <div className="mb-6">
+      <motion.div 
+        className="mb-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-grow">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
+            <motion.input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name or skill..."
-              className="w-full pl-10 pr-4 py-2 border rounded-md"
+              className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              whileFocus={{ scale: 1.01, boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.2)" }}
             />
           </div>
           
-          <button
+          <motion.button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border rounded-md bg-white"
+            className="flex items-center gap-2 px-4 py-2 border rounded-md bg-white hover:bg-gray-50 transition-colors"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
           >
             <Filter className="h-5 w-5" />
             Filters
-          </button>
+          </motion.button>
         </div>
         
-        {showFilters && (
-          <div className="bg-gray-50 p-4 rounded-md mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Skill
-                </label>
-                <input
-                  type="text"
-                  value={skillFilter}
-                  onChange={(e) => setSkillFilter(e.target.value)}
-                  placeholder="e.g., React, Python, UI/UX"
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div 
+              className="bg-gray-50 p-4 rounded-md mb-4"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Skill
+                  </label>
+                  <input
+                    type="text"
+                    value={skillFilter}
+                    onChange={(e) => setSkillFilter(e.target.value)}
+                    placeholder="e.g., React, Python, UI/UX"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={locationFilter}
+                    onChange={(e) => setLocationFilter(e.target.value)}
+                    placeholder="City, Country, or Remote"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Format
+                  </label>
+                  <select
+                    value={formatFilter}
+                    onChange={(e) => setFormatFilter(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  >
+                    <option value="all">All Formats</option>
+                    <option value="online">Online Only</option>
+                    <option value="in_person">In-Person Only</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Language
+                  </label>
+                  <input
+                    type="text"
+                    value={languageFilter}
+                    onChange={(e) => setLanguageFilter(e.target.value)}
+                    placeholder="e.g., JavaScript, Python, Java"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Experience Level
+                  </label>
+                  <select
+                    value={experienceFilter}
+                    onChange={(e) => setExperienceFilter(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  >
+                    <option value="all">All Levels</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="expert">Expert</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hackathon Interest
+                  </label>
+                  <input
+                    type="text"
+                    value={hackathonInterestFilter}
+                    onChange={(e) => setHackathonInterestFilter(e.target.value)}
+                    placeholder="e.g., AI/ML, Web3, Climate"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  />
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  placeholder="City, Country, or Remote"
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Format Preference
-                </label>
-                <select
-                  value={formatFilter}
-                  onChange={(e) => setFormatFilter(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
+              <div className="flex justify-end">
+                <motion.button
+                  onClick={resetFilters}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <option value="all">All Formats</option>
-                  <option value="online">Online/Remote</option>
-                  <option value="in_person">In-Person</option>
-                </select>
+                  Reset Filters
+                </motion.button>
               </div>
-            </div>
-            
-            <div className="flex justify-end">
-              <button
-                onClick={resetFilters}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Reset Filters
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
       
       {loading ? (
-        <div className="flex justify-center py-8">
-          <p>Loading profiles...</p>
+        <div className="flex justify-center items-center h-64">
+          <motion.div 
+            className="rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          />
         </div>
       ) : filteredProfiles.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-md">
@@ -388,21 +481,39 @@ export default function FindTeammates() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {filteredProfiles.map((profile) => (
-            <div key={profile.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <motion.div 
+              key={profile.id}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all"
+              variants={itemVariants}
+              whileHover={{ y: -5 }}
+            >
               <div className="p-6">
                 <div className="flex items-center mb-4">
-                  <img
-                    src={profile.avatar_url || 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=120&h=120&fit=crop'}
-                    alt={profile.full_name}
-                    className="w-16 h-16 rounded-full object-cover mr-4"
-                  />
+                  <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
+                    {profile.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.full_name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-indigo-600 font-medium text-lg">
+                        {profile.full_name.charAt(0)}
+                      </span>
+                    )}
+                  </div>
                   <div>
                     <h3 className="text-lg font-semibold">{profile.full_name}</h3>
                     {profile.location && (
-                      <p className="text-gray-600 flex items-center text-sm">
-                        <MapPin className="h-4 w-4 mr-1" />
+                      <p className="text-gray-600 text-sm flex items-center">
+                        <MapPin className="h-3 w-3 mr-1" />
                         {profile.location}
                       </p>
                     )}
@@ -415,12 +526,13 @@ export default function FindTeammates() {
                   </h4>
                   <div className="flex flex-wrap gap-1">
                     {profile.skills.slice(0, 3).map((skill, index) => (
-                      <span
+                      <motion.span
                         key={index}
                         className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs"
+                        whileHover={{ scale: 1.1, backgroundColor: "#e0e7ff" }}
                       >
-                        {skill.name}
-                      </span>
+                        {skill.name} • {skill.proficiency_level}
+                      </motion.span>
                     ))}
                     {profile.skills.length > 3 && (
                       <span className="text-gray-500 text-xs px-2 py-1">
@@ -485,21 +597,25 @@ export default function FindTeammates() {
                 </div>
                 
                 <div className="mt-4 flex gap-2">
-                  <Link
-                    to={`/profile/${profile.id}`}
-                    className="flex-1 text-center bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200"
-                  >
-                    View Profile
-                  </Link>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      to={`/profile/${profile.id}`}
+                      className="flex-1 text-center bg-gray-100 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors"
+                    >
+                      View Profile
+                    </Link>
+                  </motion.div>
                   
                   {profile.connection_status === 'none' && (
-                    <button
+                    <motion.button
                       onClick={() => sendConnectionRequest(profile.id)}
-                      className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                      className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
                       title="Connect"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
                       <UserPlus className="h-5 w-5" />
-                    </button>
+                    </motion.button>
                   )}
                   
                   {profile.connection_status === 'pending' && (
@@ -532,9 +648,9 @@ export default function FindTeammates() {
                   )}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
