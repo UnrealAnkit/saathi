@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, UserPlus, Check, X, Clock, User } from 'lucide-react';
+import { MessageCircle, UserPlus, Check, X, Clock, User, UserCheck, UserX, MessageSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
