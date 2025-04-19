@@ -69,6 +69,12 @@ export default function Profile() {
     website_url: '',
   });
 
+  const [showInterestModal, setShowInterestModal] = useState(false);
+
+  // Add state for skill and language modals
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
   useEffect(() => {
     const checkUser = async () => {
       // Get the current session
@@ -78,6 +84,9 @@ export default function Profile() {
         console.log('User is authenticated:', session.user);
         checkAvatarsBucket();
         fetchProfileData();
+        fetchSkills();
+        fetchLanguages();
+        fetchHackathonInterests();
       } else {
         console.log('No authenticated session found');
         setLoading(false);
@@ -386,6 +395,198 @@ export default function Profile() {
     }
   };
 
+  const fetchHackathonInterests = async () => {
+    try {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('hackathon_interests')
+        .select('*')
+        .eq('profile_id', user.id);
+        
+      if (error) throw error;
+      setHackathonInterests(data || []);
+    } catch (error) {
+      console.error('Error fetching hackathon interests:', error);
+      toast.error('Failed to load hackathon interests');
+    }
+  };
+
+  const handleAddHackathonInterest = async () => {
+    if (!newInterest) {
+      toast.error('Please enter a hackathon interest');
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('hackathon_interests')
+        .insert({
+          profile_id: user?.id,
+          interest: newInterest,
+          format_preference: newFormatPreference,
+          location_preference: newLocationPreference || null
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      setHackathonInterests([...hackathonInterests, data[0]]);
+      setNewInterest('');
+      setNewFormatPreference('online');
+      setNewLocationPreference('');
+      setShowInterestModal(false);
+      toast.success('Hackathon interest added');
+    } catch (error) {
+      console.error('Error adding hackathon interest:', error);
+      toast.error('Failed to add hackathon interest');
+    }
+  };
+
+  const handleDeleteInterest = async (interestId: string) => {
+    try {
+      const { error } = await supabase
+        .from('hackathon_interests')
+        .delete()
+        .eq('id', interestId);
+        
+      if (error) throw error;
+      
+      setHackathonInterests(hackathonInterests.filter(interest => interest.id !== interestId));
+      toast.success('Hackathon interest removed');
+    } catch (error) {
+      console.error('Error deleting hackathon interest:', error);
+      toast.error('Failed to remove hackathon interest');
+    }
+  };
+
+  const fetchSkills = async () => {
+    try {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('skills')
+        .select('*')
+        .eq('profile_id', user.id);
+        
+      if (error) throw error;
+      setSkills(data || []);
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      toast.error('Failed to load skills');
+    }
+  };
+
+  const fetchLanguages = async () => {
+    try {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('languages')
+        .select('*')
+        .eq('profile_id', user.id);
+        
+      if (error) throw error;
+      setLanguages(data || []);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      toast.error('Failed to load languages');
+    }
+  };
+
+  const handleDeleteSkill = async (skillId: string) => {
+    try {
+      const { error } = await supabase
+        .from('skills')
+        .delete()
+        .eq('id', skillId);
+        
+      if (error) throw error;
+      
+      setSkills(skills.filter(skill => skill.id !== skillId));
+      toast.success('Skill removed');
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      toast.error('Failed to remove skill');
+    }
+  };
+
+  const handleDeleteLanguage = async (languageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('languages')
+        .delete()
+        .eq('id', languageId);
+        
+      if (error) throw error;
+      
+      setLanguages(languages.filter(language => language.id !== languageId));
+      toast.success('Language removed');
+    } catch (error) {
+      console.error('Error deleting language:', error);
+      toast.error('Failed to remove language');
+    }
+  };
+
+  // Add functions to handle adding skills and languages
+  const handleAddSkill = async () => {
+    if (!newSkill) {
+      toast.error('Please enter a skill');
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('skills')
+        .insert({
+          profile_id: user?.id,
+          name: newSkill,
+          proficiency_level: newSkillLevel
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      setSkills([...skills, data[0]]);
+      setNewSkill('');
+      setNewSkillLevel('Beginner');
+      setShowSkillModal(false);
+      toast.success('Skill added');
+    } catch (error) {
+      console.error('Error adding skill:', error);
+      toast.error('Failed to add skill');
+    }
+  };
+
+  const handleAddLanguage = async () => {
+    if (!newLanguage) {
+      toast.error('Please enter a language');
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('languages')
+        .insert({
+          profile_id: user?.id,
+          language: newLanguage,
+          proficiency_level: newLanguageLevel
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      setLanguages([...languages, data[0]]);
+      setNewLanguage('');
+      setNewLanguageLevel('Fluent');
+      setShowLanguageModal(false);
+      toast.success('Language added');
+    } catch (error) {
+      console.error('Error adding language:', error);
+      toast.error('Failed to add language');
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center p-8">Loading profile...</div>;
   }
@@ -657,6 +858,118 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Add Skill Modal */}
+      {showSkillModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold mb-4 text-white">Add Skill</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="skill" className="block text-sm font-medium mb-1 text-gray-300">
+                  Skill Name
+                </label>
+                <input
+                  id="skill"
+                  type="text"
+                  value={newSkill}
+                  onChange={(e) => setNewSkill(e.target.value)}
+                  placeholder="e.g., React, Python, UI Design"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="skillLevel" className="block text-sm font-medium mb-1 text-gray-300">
+                  Proficiency Level
+                </label>
+                <select
+                  id="skillLevel"
+                  value={newSkillLevel}
+                  onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
+                >
+                  {skillLevels.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6 gap-3">
+              <button
+                onClick={() => setShowSkillModal(false)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSkill}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+              >
+                Add Skill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Language Modal */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold mb-4 text-white">Add Language</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="language" className="block text-sm font-medium mb-1 text-gray-300">
+                  Language
+                </label>
+                <input
+                  id="language"
+                  type="text"
+                  value={newLanguage}
+                  onChange={(e) => setNewLanguage(e.target.value)}
+                  placeholder="e.g., English, Spanish, French"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="languageLevel" className="block text-sm font-medium mb-1 text-gray-300">
+                  Proficiency Level
+                </label>
+                <select
+                  id="languageLevel"
+                  value={newLanguageLevel}
+                  onChange={(e) => setNewLanguageLevel(e.target.value as LanguageLevel)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
+                >
+                  {languageLevels.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6 gap-3">
+              <button
+                onClick={() => setShowLanguageModal(false)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddLanguage}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+              >
+                Add Language
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

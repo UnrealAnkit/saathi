@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Calendar, MapPin, Globe, Users, ExternalLink, ArrowLeft } from 'lucide-react';
+import { Calendar, MapPin, Globe, Users, ExternalLink, ArrowLeft, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -34,6 +34,9 @@ interface Participant {
   };
 }
 
+// Update the status type to match your database constraints
+type ParticipationStatus = 'interested' | 'participating' | 'completed';
+
 export default function HackathonDetail() {
   const { hackathonId } = useParams<{ hackathonId: string }>();
   const { user } = useAuth();
@@ -41,7 +44,7 @@ export default function HackathonDetail() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [participating, setParticipating] = useState(false);
-  const [participationStatus, setParticipationStatus] = useState<'interested' | 'participating' | 'completed' | null>(null);
+  const [participationStatus, setParticipationStatus] = useState<ParticipationStatus | null>(null);
 
   useEffect(() => {
     if (hackathonId) {
@@ -98,7 +101,7 @@ export default function HackathonDetail() {
         
         if (isParticipating) {
           const status = participantsData?.find(p => p.profile_id === user.id)?.status;
-          setParticipationStatus(status as any || null);
+          setParticipationStatus(status as ParticipationStatus || null);
         }
       }
     } catch (error) {
@@ -118,45 +121,69 @@ export default function HackathonDetail() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const joinHackathon = async (status: 'interested' | 'participating') => {
+  // Modify the joinHackathon function to use string values
+  const joinHackathon = async (status: string) => {
     if (!user) {
-      toast.error('Please sign in to join this hackathon');
+      toast.error('You must be logged in to join a hackathon');
       return;
     }
 
     try {
+      setLoading(true);
+      
+      // Check if the user is already participating
       if (participating) {
-        // Update status
+        // Update existing participation status
         const { error } = await supabase
           .from('hackathon_participants')
           .update({ status })
           .eq('hackathon_id', hackathonId)
           .eq('profile_id', user.id);
-
-        if (error) throw error;
+          
+        if (error) {
+          console.error('Error updating status:', error);
+          throw error;
+        }
+        
+        setParticipationStatus(status as ParticipationStatus);
+        toast.success(`Status updated to ${status}`);
       } else {
-        // Insert new participation
-        const { error } = await supabase
+        // Log the data being inserted for debugging
+        console.log('Inserting participation record:', {
+          hackathon_id: hackathonId,
+          profile_id: user.id,
+          status
+        });
+        
+        // Create new participation record
+        const { data, error } = await supabase
           .from('hackathon_participants')
           .insert({
             hackathon_id: hackathonId,
             profile_id: user.id,
             status
-          });
-
-        if (error) throw error;
+          })
+          .select();
+          
+        if (error) {
+          console.error('Error inserting participation:', error);
+          throw error;
+        }
+        
+        console.log('Participation record created:', data);
+        
+        setParticipating(true);
+        setParticipationStatus(status as ParticipationStatus);
+        toast.success(`You are now ${status} in this hackathon`);
       }
-
-      toast.success(status === 'interested' 
-        ? 'You are now marked as interested in this hackathon' 
-        : 'You are now participating in this hackathon');
       
-      setParticipating(true);
-      setParticipationStatus(status);
-      fetchHackathonDetails(); // Refresh data
+      // Refresh participants list
+      fetchHackathonDetails();
     } catch (error) {
       console.error('Error joining hackathon:', error);
-      toast.error('Failed to join hackathon');
+      toast.error('Failed to update participation status');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -391,30 +418,54 @@ export default function HackathonDetail() {
                   </p>
                 </motion.div>
                 
-                <div className="space-y-3">
-                  <motion.button
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <button
                     onClick={() => joinHackathon('interested')}
-                    className={`w-full px-4 py-2 rounded-md border text-center
-                      ${participationStatus === 'interested' 
-                        ? 'bg-indigo-600 text-white border-indigo-600' 
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
+                    disabled={loading || participationStatus === 'interested'}
+                    className={`px-4 py-2 rounded-md flex items-center justify-center ${
+                      participationStatus === 'interested'
+                        ? 'bg-indigo-700 text-white cursor-default'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
                   >
-                    I'm Interested
-                  </motion.button>
+                    {participationStatus === 'interested' ? (
+                      <>
+                        <Check className="h-5 w-5 mr-2" />
+                        Interested
+                      </>
+                    ) : (
+                      "I'm Interested"
+                    )}
+                  </button>
                   
-                  <motion.button
+                  <button
                     onClick={() => joinHackathon('participating')}
-                    className={`w-full px-4 py-2 rounded-md border text-center
-                      ${participationStatus === 'participating' 
-                        ? 'bg-indigo-600 text-white border-indigo-600' 
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
+                    disabled={loading || participationStatus === 'participating'}
+                    className={`px-4 py-2 rounded-md flex items-center justify-center ${
+                      participationStatus === 'participating'
+                        ? 'bg-purple-700 text-white cursor-default'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
                   >
-                    I'm Participating
-                  </motion.button>
+                    {participationStatus === 'participating' ? (
+                      <>
+                        <Check className="h-5 w-5 mr-2" />
+                        Participating
+                      </>
+                    ) : (
+                      "I'm Participating"
+                    )}
+                  </button>
+                  
+                  {(participationStatus === 'interested' || participationStatus === 'participating') && (
+                    <Link
+                      to={`/hackathons/${hackathonId}/teammates`}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"
+                    >
+                      <Users className="h-5 w-5 mr-2" />
+                      Browse Teammates
+                    </Link>
+                  )}
                 </div>
               </div>
             ) : (
