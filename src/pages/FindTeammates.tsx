@@ -30,6 +30,7 @@ export default function FindTeammates() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [filteredProfiles, setFilteredProfiles] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -69,7 +70,7 @@ export default function FindTeammates() {
   
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, skillFilter, locationFilter, formatFilter, profiles]);
+  }, [searchQuery, skillFilter, locationFilter, formatFilter, profiles]);
   
   const fetchProfiles = async () => {
     setLoading(true);
@@ -198,12 +199,14 @@ export default function FindTeammates() {
   const applyFilters = () => {
     let filtered = [...profiles];
     
-    // Apply search term filter (name or skills)
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    // Apply search query filter (across name, skills, languages, and location)
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(profile => 
-        profile.full_name.toLowerCase().includes(term) || 
-        profile.skills.some(skill => skill.name.toLowerCase().includes(term))
+        profile.full_name.toLowerCase().includes(query) || 
+        profile.skills.some(skill => skill.name.toLowerCase().includes(query)) ||
+        profile.languages.some(lang => lang.language.toLowerCase().includes(query)) ||
+        (profile.location && profile.location.toLowerCase().includes(query))
       );
     }
     
@@ -263,7 +266,7 @@ export default function FindTeammates() {
   };
   
   const resetFilters = () => {
-    setSearchTerm('');
+    setSearchQuery('');
     setSkillFilter('');
     setLocationFilter('');
     setFormatFilter('all');
@@ -337,6 +340,15 @@ export default function FindTeammates() {
     }
   };
   
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+  
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    applyFilters();
+  };
+  
   return (
     <div className="max-w-6xl mx-auto px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -348,8 +360,8 @@ export default function FindTeammates() {
             <input
               type="text"
               placeholder="Search by name, skill, or location"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchQuery}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
@@ -374,6 +386,24 @@ export default function FindTeammates() {
             className="overflow-hidden mb-8"
           >
             <div className="bg-gray-800 p-6 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="mb-6">
+                <form onSubmit={handleSearchSubmit} className="flex">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    placeholder="Search by name, skill, language or location..."
+                    className="w-full px-4 py-2 border rounded-l-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-r-md hover:bg-indigo-700 flex items-center justify-center"
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                </form>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Skill
@@ -615,7 +645,7 @@ export default function FindTeammates() {
           <p className="text-gray-400 mb-6">Try adjusting your filters or search terms</p>
           <button
             onClick={() => {
-              setSearchTerm('');
+              setSearchQuery('');
               setSkillFilter('');
               setLocationFilter('');
               setFormatFilter('all');
